@@ -28,9 +28,9 @@ const SAMPLE_VENUES: Venue[] = [
 const SAMPLE_ORGANIZERS: Organizer[] = [
   {
     id: 'o1',
-    organizerName: 'SaaScraft Studio',
+    organizerName: 'OnsiteWala',
     contactPersonName: 'Rajesh Kumar',
-    contactPersonEmail: 'rajesh@saascraft.in',
+    contactPersonEmail: 'rajesh@onsitewala.in',
     contactPersonMobile: '+91 9876543210',
   },
   {

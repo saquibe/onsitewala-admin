@@ -117,7 +117,7 @@ export default function EventsPage() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-white/70 hidden sm:inline">
-              admin@saascraft.in
+              admin@onsitewala.in
             </span>
             <button
               onClick={() => router.push("/")}
@@ -911,7 +911,7 @@ function OrganizerDialog({
               value={organizerName}
               onChange={(e) => setOrganizerName(e.target.value)}
               required
-              placeholder="SaaScraft Studio"
+              placeholder="Onsitewala"
             />
           </div>
           <div className="space-y-2">

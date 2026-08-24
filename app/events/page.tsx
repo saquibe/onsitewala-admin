@@ -67,6 +67,7 @@ import {
   getOrganizerById,
 } from "@/lib/store";
 import { Event, Venue, Organizer, EventStatus } from "@/lib/types";
+import { Header } from "@/components/Header";
 
 type Tab = "events" | "venue" | "organizer";
 
@@ -105,29 +106,7 @@ export default function EventsPage() {
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
       {/* Top brand bar */}
-      <header className="brand-header-gradient text-white">
-        <div className="px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/10 backdrop-blur flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-orange-400" />
-            </div>
-            <div className="font-bold">OnsiteWala</div>
-            <span className="text-white/30">/</span>
-            <span className="text-white/70 text-sm">Admin Panel</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-white/70 hidden sm:inline">
-              admin@onsitewala.in
-            </span>
-            <button
-              onClick={() => router.push("/")}
-              className="text-white/70 hover:text-white"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <div className="flex-1 flex">
         {/* Mini sidebar */}

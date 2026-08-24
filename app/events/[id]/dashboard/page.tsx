@@ -9,9 +9,7 @@ import {
   KeyRound,
   Database,
   Settings,
-  Calendar,
   ChevronLeft,
-  Users,
   Award,
   ScanLine,
   MoreVertical,
@@ -67,6 +65,7 @@ import {
   addAttendeesFromCsv,
 } from "@/lib/store";
 import { CategoryItem } from "@/lib/types";
+import { Header } from "@/components/Header";
 
 type Section = "dashboard" | "category" | "privileges" | "data" | "settings";
 type CategoryTab = "attendee" | "certificate" | "scan";
@@ -155,36 +154,13 @@ export default function EventDashboardPage({
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
       {/* Top event header */}
-      <header className="brand-header-gradient text-white">
-        <div className="px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={() => router.push("/events")}
-              className="flex items-center gap-1 text-white/70 hover:text-white text-sm"
-            >
-              <ChevronLeft className="w-4 h-4" /> Events
-            </button>
-            <span className="text-white/30">/</span>
-            <div className="min-w-0">
-              <div className="font-bold truncate">{event.fullName}</div>
-            </div>
-            <Badge className="ml-2 bg-white/15 text-white border-0 capitalize">
-              {event.status}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-white/60 hidden md:inline">
-              {event.startDate} → {event.endDate}
-            </span>
-            <button
-              onClick={() => router.push("/")}
-              className="text-white/70 hover:text-white"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </header>
+      <Header
+        showEventInfo={true}
+        eventName={event.fullName}
+        eventStatus={event.status}
+        startDate={event.startDate}
+        endDate={event.endDate}
+      />
 
       <div className="flex-1 flex">
         {/* Sidebar */}

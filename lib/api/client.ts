@@ -13,11 +13,16 @@ class ApiClient {
   private static instance: ApiClient;
 
   private constructor() {
+    const baseURL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+    console.log("API Client initialized with baseURL:", baseURL);
+
     this.client = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
+      baseURL,
       headers: {
         "Content-Type": "application/json",
       },
+      timeout: 10000,
     });
 
     // Request interceptor for adding token
@@ -27,15 +32,31 @@ class ApiClient {
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
+        console.log(
+          `API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
+        );
         return config;
       },
-      (error) => Promise.reject(error),
+      (error) => {
+        console.error("Request Error:", error);
+        return Promise.reject(error);
+      },
     );
 
-    // Response interceptor for token refresh
+    // Response interceptor
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        console.log(`API Response: ${response.status} ${response.config.url}`);
+        return response;
+      },
       async (error: AxiosError) => {
+        console.error("API Error:", {
+          status: error.response?.status,
+          data: error.response?.data,
+          url: error.config?.url,
+          method: error.config?.method,
+        });
+
         const originalRequest = error.config as AxiosRequestConfig & {
           _retry?: boolean;
         };
@@ -44,16 +65,15 @@ class ApiClient {
           originalRequest._retry = true;
           try {
             const newToken = await this.refreshToken();
-            originalRequest.headers = {
-              ...originalRequest.headers,
-              Authorization: `Bearer ${newToken}`,
-            };
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            }
             return this.client(originalRequest);
           } catch (refreshError) {
-            // Redirect to login on refresh failure
+            console.error("Token refresh failed:", refreshError);
             if (typeof window !== "undefined") {
               localStorage.removeItem("accessToken");
-              window.location.href = "/";
+              // Don't redirect here, let the component handle it
             }
             return Promise.reject(refreshError);
           }
@@ -73,7 +93,7 @@ class ApiClient {
   private async refreshToken(): Promise<string> {
     const response =
       await this.client.post<ApiResponse<{ accessToken: string }>>(
-        "/auth/refresh",
+        "api/auth/refresh",
       );
     if (response.data.success && response.data.data) {
       const newToken = response.data.data.accessToken;
@@ -96,8 +116,35 @@ class ApiClient {
     data?: any,
     config?: AxiosRequestConfig,
   ): Promise<ApiResponse<T>> {
-    const response = await this.client.post<ApiResponse<T>>(url, data, config);
-    return response.data;
+    try {
+      const response = await this.client.post<ApiResponse<T>>(
+        url,
+        data,
+        config,
+      );
+      return response.data;
+    } catch (error) {
+      console.error("POST Error:", error);
+      throw error;
+    }
+  }
+
+  public async patch<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<ApiResponse<T>> {
+    try {
+      const response = await this.client.patch<ApiResponse<T>>(
+        url,
+        data,
+        config,
+      );
+      return response.data;
+    } catch (error) {
+      console.error("PATCH Error:", error);
+      throw error;
+    }
   }
 
   public async put<T>(
@@ -123,6 +170,10 @@ class ApiClient {
 
   public clearToken() {
     localStorage.removeItem("accessToken");
+  }
+
+  public getBaseURL(): string {
+    return this.client.defaults.baseURL || "";
   }
 }
 

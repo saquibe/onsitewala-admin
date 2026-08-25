@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isLoading } = useAuth();
+  const { login, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [email, setEmail] = useState("");
@@ -22,6 +22,17 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Basic validation
+    if (!email || !password) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter both email and password",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -29,18 +40,24 @@ export default function LoginPage() {
       toast({
         title: "Login Successful",
         description: "Welcome back!",
-        variant: "default",
       });
       router.push("/events");
     } catch (error: any) {
       toast({
         title: "Login Failed",
-        description: error.message || "Invalid email or password",
+        description:
+          error.message || "Invalid email or password. Please try again.",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  // Pre-fill demo credentials for convenience (optional)
+  const fillDemoCredentials = () => {
+    setEmail("asifsaascraft@gmail.com");
+    setPassword("12345678");
   };
 
   return (
@@ -129,6 +146,7 @@ export default function LoginPage() {
                   className="pl-10"
                   placeholder="you@company.com"
                   required
+                  disabled={loading || authLoading}
                 />
               </div>
             </div>
@@ -140,6 +158,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => router.push("/forgot-password")}
                   className="text-xs text-orange-600 hover:underline"
+                  disabled={loading || authLoading}
                 >
                   Forgot password?
                 </button>
@@ -154,11 +173,13 @@ export default function LoginPage() {
                   className="pl-10 pr-10"
                   placeholder="••••••••"
                   required
+                  disabled={loading || authLoading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                  disabled={loading || authLoading}
                 >
                   {showPassword ? (
                     <EyeOff className="w-4 h-4" />
@@ -175,6 +196,7 @@ export default function LoginPage() {
                   type="checkbox"
                   className="rounded border-neutral-300"
                   defaultChecked
+                  disabled={loading || authLoading}
                 />
                 Remember me
               </label>
@@ -182,16 +204,37 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || authLoading}
               className="w-full bg-orange-600 hover:bg-orange-700 text-white h-11"
             >
-              {loading ? "Signing in..." : "Sign in"}
-              {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
+              {loading || authLoading ? (
+                <>
+                  <span className="animate-spin mr-2">⟳</span>
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  Sign in
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </>
+              )}
             </Button>
+
+            {/* Demo credentials helper - optional */}
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={fillDemoCredentials}
+                className="text-xs text-neutral-400 hover:text-neutral-600 underline"
+                disabled={loading || authLoading}
+              >
+                Fill demo credentials
+              </button>
+            </div>
           </form>
 
           <div className="text-center text-xs text-neutral-400">
-            Demo credentials: admin@example.com / Admin@123
+            Demo: asifsaascraft@gmail.com / 12345678
           </div>
         </div>
       </div>

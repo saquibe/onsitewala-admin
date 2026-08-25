@@ -1,7 +1,7 @@
 // hooks/use-auth.ts
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { authApi, User } from "@/lib/api";
+import { authApi, User } from "@/lib/api/auth";
 import Cookies from "js-cookie";
 
 export function useAuth() {
@@ -24,7 +24,9 @@ export function useAuth() {
       setUser(userData);
     } catch (error) {
       console.error("Failed to fetch user:", error);
-      // Don't logout here, let the API interceptor handle it
+      // If token is invalid, clear it
+      Cookies.remove("accessToken");
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
@@ -62,6 +64,7 @@ export function useAuth() {
 
   return {
     user,
+    setUser,
     isLoading,
     login,
     logout,

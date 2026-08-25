@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -51,7 +51,6 @@ export function Header({
     }
   };
 
-  // Get user initials for avatar
   const getUserInitials = () => {
     if (!user) return "A";
     const nameParts = user.fullName?.split(" ") || ["A"];
@@ -61,13 +60,11 @@ export function Header({
     return nameParts[0][0].toUpperCase();
   };
 
-  // Get user display name
   const getUserDisplayName = () => {
     if (!user) return "Admin";
     return user.fullName || user.email || "Admin";
   };
 
-  // Get user email
   const getUserEmail = () => {
     if (!user) return "admin@onsitewala.in";
     return user.email || "admin@onsitewala.in";
@@ -116,9 +113,16 @@ export function Header({
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-3 hover:bg-white/10 px-3 py-1.5 rounded-lg transition group">
                 <Avatar className="w-8 h-8 border-2 border-white/20">
-                  <AvatarFallback className="bg-orange-500 text-white text-sm font-medium">
-                    {getUserInitials()}
-                  </AvatarFallback>
+                  {user?.profileImage ? (
+                    <AvatarImage
+                      src={user.profileImage}
+                      alt={getUserDisplayName()}
+                    />
+                  ) : (
+                    <AvatarFallback className="bg-orange-500 text-white text-sm font-medium">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  )}
                 </Avatar>
                 <div className="hidden md:block text-left">
                   <div className="text-sm font-medium leading-none">

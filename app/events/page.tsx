@@ -1,82 +1,60 @@
+// app/events/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ShieldCheck,
   Plus,
   MapPin,
   Users,
   Calendar,
   Search,
-  MoreVertical,
-  Edit,
-  Trash2,
-  Globe,
-  Link as LinkIcon,
-  Mail,
-  Phone,
-  Building2,
-  User,
-  Image as ImageIcon,
-  LogOut,
   LayoutGrid,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  getEvents,
-  getVenues,
-  getOrganizers,
-  addEvent,
-  addVenue,
-  addOrganizer,
-  getVenueById,
-  getOrganizerById,
-} from "@/lib/store";
-import { Event, Venue, Organizer, EventStatus } from "@/lib/types";
 import { Header } from "@/components/Header";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { venuesApi, organizersApi, eventsApi } from "@/lib/api";
+import type { Venue, Organizer, Event } from "@/lib/api";
+import { EventCard } from "@/components/events/EventCard";
+import { OrganizerCard } from "@/components/events/OrganizerCard";
+import { EmptyState } from "@/components/events/EmptyState";
+import {
+  EventDialog,
+  OrganizerDialog,
+  VenueDialog,
+} from "@/components/events/Dialogs";
+import { VenueCard } from "@/components/events/VenueCard";
 
 type Tab = "events" | "venue" | "organizer";
 
+// Helper functions
+const getVenueObject = (venue: Venue | string | undefined): Venue | null => {
+  if (!venue) return null;
+  if (typeof venue === "object" && venue.venueName) return venue;
+  return null;
+};
+
+const getOrganizerObject = (
+  organizer: Organizer | string | undefined,
+): Organizer | null => {
+  if (!organizer) return null;
+  if (typeof organizer === "object" && organizer.organizerName)
+    return organizer;
+  return null;
+};
+
 export default function EventsPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [tab, setTab] = useState<Tab>("events");
-  const [events, setEvents] = useState<Event[]>(getEvents());
-  const [venues, setVenues] = useState<Venue[]>(getVenues());
-  const [organizers, setOrganizers] = useState<Organizer[]>(getOrganizers());
+  const [events, setEvents] = useState<Event[]>([]);
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [organizers, setOrganizers] = useState<Organizer[]>([]);
+  const [loading, setLoading] = useState(true);
   const [eventSearch, setEventSearch] = useState("");
 
   const [eventDialog, setEventDialog] = useState(false);
@@ -85,27 +63,99 @@ export default function EventsPage() {
   const [editVenue, setEditVenue] = useState<Venue | null>(null);
   const [editOrganizer, setEditOrganizer] = useState<Organizer | null>(null);
 
+  // Load data
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      console.log("Loading data...");
+
+      const [eventsRes, venuesRes, organizersRes] = await Promise.all([
+        eventsApi.getEvents({ limit: 100 }),
+        venuesApi.getVenues({ limit: 100 }),
+        organizersApi.getOrganizers({ limit: 100 }),
+      ]);
+
+      console.log("Events response:", eventsRes);
+      console.log("Venues response:", venuesRes);
+      console.log("Organizers response:", organizersRes);
+
+      // Handle different response structures
+      const eventsData = eventsRes.data || eventsRes || [];
+      const venuesData = venuesRes.data || venuesRes || [];
+      const organizersData = organizersRes.data || organizersRes || [];
+
+      setEvents(Array.isArray(eventsData) ? eventsData : []);
+      setVenues(Array.isArray(venuesData) ? venuesData : []);
+      setOrganizers(Array.isArray(organizersData) ? organizersData : []);
+    } catch (error: any) {
+      console.error("Load data error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const openEvent = (id: string) => router.push(`/events/${id}/dashboard`);
 
-  const filteredEvents = events.filter(
-    (e) =>
-      e.fullName.toLowerCase().includes(eventSearch.toLowerCase()) ||
-      e.shortName.toLowerCase().includes(eventSearch.toLowerCase()) ||
-      e.city.toLowerCase().includes(eventSearch.toLowerCase()),
-  );
+  // Filter events
+  const filteredEvents = events.filter((e) => {
+    const search = eventSearch.toLowerCase();
+    const venue = getVenueObject(e.venueId);
+    const organizer = getOrganizerObject(e.organizerId);
+    const venueName = venue?.venueName?.toLowerCase() || "";
+    const organizerName = organizer?.organizerName?.toLowerCase() || "";
+    const city = venue?.city?.toLowerCase() || "";
 
-  const statusColor: Record<EventStatus, string> = {
-    live: "bg-green-100 text-green-700 border-green-200",
-    running: "bg-blue-100 text-blue-700 border-blue-200",
-    draft: "bg-neutral-100 text-neutral-600 border-neutral-200",
-    past: "bg-neutral-100 text-neutral-500 border-neutral-200",
-    cancelled: "bg-red-100 text-red-700 border-red-200",
-    trash: "bg-neutral-100 text-neutral-400 border-neutral-200",
+    return (
+      e.eventName?.toLowerCase().includes(search) ||
+      e.eventShortName?.toLowerCase().includes(search) ||
+      venueName.includes(search) ||
+      organizerName.includes(search) ||
+      city.includes(search)
+    );
+  });
+
+  const handleDeleteEvent = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this event?")) return;
+
+    try {
+      await eventsApi.deleteEvent(id);
+      toast({
+        title: "Success",
+        description: "Event deleted successfully",
+      });
+      loadData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete event",
+        variant: "destructive",
+      });
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-neutral-50">
+        <Header />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-orange-600" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
-      {/* Top brand bar */}
       <Header />
 
       <div className="flex-1 flex">
@@ -117,21 +167,27 @@ export default function EventsPage() {
           <nav className="mt-4 flex flex-col gap-3">
             <button
               onClick={() => setTab("events")}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${tab === "events" ? "bg-white/15" : "hover:bg-white/10"}`}
+              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
+                tab === "events" ? "bg-white/15" : "hover:bg-white/10"
+              }`}
               title="Events"
             >
               <Calendar className="w-5 h-5" />
             </button>
             <button
               onClick={() => setTab("venue")}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${tab === "venue" ? "bg-white/15" : "hover:bg-white/10"}`}
+              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
+                tab === "venue" ? "bg-white/15" : "hover:bg-white/10"
+              }`}
               title="Venues"
             >
               <MapPin className="w-5 h-5" />
             </button>
             <button
               onClick={() => setTab("organizer")}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${tab === "organizer" ? "bg-white/15" : "hover:bg-white/10"}`}
+              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
+                tab === "organizer" ? "bg-white/15" : "hover:bg-white/10"
+              }`}
               title="Organizers"
             >
               <Users className="w-5 h-5" />
@@ -173,7 +229,11 @@ export default function EventsPage() {
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className={`pb-3 text-sm capitalize transition border-b-2 ${tab === t ? "nav-tab-active" : "border-transparent text-neutral-500 hover:text-neutral-800"}`}
+                  className={`pb-3 text-sm capitalize transition border-b-2 ${
+                    tab === t
+                      ? "border-orange-600 text-orange-600 font-semibold"
+                      : "border-transparent text-neutral-500 hover:text-neutral-800"
+                  }`}
                 >
                   {t === "venue"
                     ? "Venues"
@@ -193,89 +253,33 @@ export default function EventsPage() {
                   <Input
                     value={eventSearch}
                     onChange={(e) => setEventSearch(e.target.value)}
-                    placeholder="Search events by name or city..."
+                    placeholder="Search events by name, venue, or organizer..."
                     className="pl-10 bg-white"
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                   {filteredEvents.map((ev) => {
-                    const venue = getVenueById(ev.venueId);
-                    const org = getOrganizerById(ev.organizerId);
+                    const venue = getVenueObject(ev.venueId);
+                    const organizer = getOrganizerObject(ev.organizerId);
                     return (
-                      <div
-                        key={ev.id}
-                        onClick={() => openEvent(ev.id)}
-                        className="event-card bg-white rounded-xl border border-neutral-200 overflow-hidden cursor-pointer group"
-                      >
-                        <div className="relative h-40 overflow-hidden">
-                          <img
-                            src={
-                              ev.image ||
-                              "https://images.pexels.com/photos/2774556/pexels-photo-2774556.jpeg?auto=compress&cs=tinysrgb&w=400"
-                            }
-                            alt={ev.fullName}
-                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                          />
-                          <div className="absolute top-3 left-3">
-                            <Badge
-                              className={`${statusColor[ev.status]} border`}
-                            >
-                              {ev.status}
-                            </Badge>
-                          </div>
-                          <div
-                            className="absolute top-3 right-3"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button className="w-7 h-7 rounded-md bg-white/90 backdrop-blur flex items-center justify-center text-neutral-700 hover:bg-white">
-                                  <MoreVertical className="w-4 h-4" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => openEvent(ev.id)}
-                                >
-                                  <Edit className="w-4 h-4 mr-2" /> Open
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600">
-                                  <Trash2 className="w-4 h-4 mr-2" /> Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                        <div className="p-4">
-                          <div className="text-xs text-orange-600 font-semibold">
-                            {ev.shortName}
-                          </div>
-                          <h3 className="font-bold text-neutral-900 mt-1 line-clamp-2">
-                            {ev.fullName}
-                          </h3>
-                          <div className="mt-3 space-y-1.5 text-sm text-neutral-600">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-3.5 h-3.5 text-neutral-400" />
-                              {ev.startDate} → {ev.endDate}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-3.5 h-3.5 text-neutral-400" />
-                              {venue?.name}, {ev.city}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Users className="w-3.5 h-3.5 text-neutral-400" />
-                              {org?.organizerName}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <EventCard
+                        key={ev._id}
+                        event={ev}
+                        venue={venue}
+                        organizer={organizer}
+                        onOpen={openEvent}
+                        onDelete={handleDeleteEvent}
+                      />
                     );
                   })}
                 </div>
                 {filteredEvents.length === 0 && (
-                  <div className="text-center py-20 text-neutral-400">
-                    No events found. Click "Add Event" to create one.
-                  </div>
+                  <EmptyState
+                    title="No events found"
+                    description='Click "Add Event" to create your first event.'
+                    buttonText="Add Event"
+                    onAdd={() => setEventDialog(true)}
+                  />
                 )}
               </>
             )}
@@ -283,116 +287,51 @@ export default function EventsPage() {
             {tab === "venue" && (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {venues.map((v) => (
-                  <div
-                    key={v.id}
-                    className="bg-white rounded-xl border border-neutral-200 overflow-hidden event-card"
-                  >
-                    <div className="h-32 bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center">
-                      <MapPin className="w-10 h-10 text-orange-400" />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-bold text-neutral-900">{v.name}</h3>
-                      <div className="mt-2 space-y-1.5 text-sm text-neutral-600">
-                        <div className="flex items-start gap-2">
-                          <MapPin className="w-3.5 h-3.5 mt-0.5 text-neutral-400" />
-                          <span>{v.address}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-3.5 h-3.5 text-neutral-400" />
-                          {v.city}, {v.state}, {v.country}
-                        </div>
-                        {v.website && (
-                          <div className="flex items-center gap-2">
-                            <Globe className="w-3.5 h-3.5 text-neutral-400" />
-                            <a
-                              href={v.website}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-orange-600 hover:underline truncate"
-                            >
-                              {v.website}
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-4 flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditVenue(v)}
-                        >
-                          <Edit className="w-3.5 h-3.5 mr-1" /> Edit
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+                  <VenueCard key={v._id} venue={v} onEdit={setEditVenue} />
                 ))}
+                {venues.length === 0 && (
+                  <EmptyState
+                    title="No venues found"
+                    description='Click "Add Venue" to create your first venue.'
+                    buttonText="Add Venue"
+                    onAdd={() => setVenueDialog(true)}
+                  />
+                )}
               </div>
             )}
 
             {tab === "organizer" && (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {organizers.map((o) => (
-                  <div
-                    key={o.id}
-                    className="bg-white rounded-xl border border-neutral-200 p-5 event-card"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center">
-                        <Users className="w-6 h-6 text-orange-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-neutral-900">
-                          {o.organizerName}
-                        </h3>
-                        <div className="mt-2 space-y-1.5 text-sm text-neutral-600">
-                          <div className="flex items-center gap-2">
-                            <User className="w-3.5 h-3.5 text-neutral-400" />
-                            {o.contactPersonName}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Mail className="w-3.5 h-3.5 text-neutral-400" />
-                            {o.contactPersonEmail}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-3.5 h-3.5 text-neutral-400" />
-                            {o.contactPersonMobile}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditOrganizer(o)}
-                      >
-                        <Edit className="w-3.5 h-3.5 mr-1" /> Edit
-                      </Button>
-                    </div>
-                  </div>
+                  <OrganizerCard
+                    key={o._id}
+                    organizer={o}
+                    onEdit={setEditOrganizer}
+                  />
                 ))}
+                {organizers.length === 0 && (
+                  <EmptyState
+                    title="No organizers found"
+                    description='Click "Add Organizer" to create your first organizer.'
+                    buttonText="Add Organizer"
+                    onAdd={() => setOrganizerDialog(true)}
+                  />
+                )}
               </div>
             )}
           </div>
         </main>
       </div>
 
-      {/* Event Dialog */}
+      {/* Dialogs */}
       <EventDialog
         open={eventDialog}
         onOpenChange={setEventDialog}
         venues={venues}
         organizers={organizers}
-        onCreate={(e) => {
-          const created = addEvent(e);
-          setEvents(getEvents());
-          setEventDialog(false);
-          openEvent(created.id);
-        }}
+        onSuccess={loadData}
       />
 
-      {/* Venue Dialog */}
       <VenueDialog
         open={venueDialog || !!editVenue}
         editing={editVenue}
@@ -402,23 +341,9 @@ export default function EventsPage() {
             setEditVenue(null);
           }
         }}
-        onSubmit={(v) => {
-          if (editVenue) {
-            setVenues((vs) =>
-              vs.map((x) =>
-                x.id === editVenue.id ? { ...editVenue, ...v } : x,
-              ),
-            );
-          } else {
-            addVenue(v);
-            setVenues(getVenues());
-          }
-          setVenueDialog(false);
-          setEditVenue(null);
-        }}
+        onSuccess={loadData}
       />
 
-      {/* Organizer Dialog */}
       <OrganizerDialog
         open={organizerDialog || !!editOrganizer}
         editing={editOrganizer}
@@ -428,516 +353,8 @@ export default function EventsPage() {
             setEditOrganizer(null);
           }
         }}
-        onSubmit={(o) => {
-          if (editOrganizer) {
-            setOrganizers((os) =>
-              os.map((x) =>
-                x.id === editOrganizer.id ? { ...editOrganizer, ...o } : x,
-              ),
-            );
-          } else {
-            addOrganizer(o);
-            setOrganizers(getOrganizers());
-          }
-          setOrganizerDialog(false);
-          setEditOrganizer(null);
-        }}
+        onSuccess={loadData}
       />
     </div>
-  );
-}
-
-function EventDialog({
-  open,
-  onOpenChange,
-  venues,
-  organizers,
-  onCreate,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  venues: Venue[];
-  organizers: Organizer[];
-  onCreate: (e: Omit<Event, "id">) => void;
-}) {
-  const [fullName, setFullName] = useState("");
-  const [shortName, setShortName] = useState("");
-  const [operatorLoginCode, setOperatorLoginCode] = useState("");
-  const [organizerId, setOrganizerId] = useState("");
-  const [venueId, setVenueId] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [image, setImage] = useState("");
-  const [status, setStatus] = useState<EventStatus>("draft");
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const venue = venues.find((v) => v.id === venueId);
-    onCreate({
-      fullName,
-      shortName,
-      operatorLoginCode,
-      organizerId,
-      startDate,
-      endDate,
-      venueId,
-      image,
-      city: venue?.city || "",
-      state: venue?.state || "",
-      country: venue?.country || "",
-      status,
-    });
-    setFullName("");
-    setShortName("");
-    setOperatorLoginCode("");
-    setOrganizerId("");
-    setVenueId("");
-    setStartDate("");
-    setEndDate("");
-    setImage("");
-    setStatus("draft");
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add New Event</DialogTitle>
-          <DialogDescription>
-            Create a new event. Fields marked with * are required.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Full Name *</Label>
-              <Input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-                placeholder="AIG IBD Summit 2025"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Short Name *</Label>
-              <Input
-                value={shortName}
-                onChange={(e) => setShortName(e.target.value)}
-                required
-                placeholder="IBD2025"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Operator Login Code *</Label>
-              <Input
-                value={operatorLoginCode}
-                onChange={(e) => setOperatorLoginCode(e.target.value)}
-                required
-                placeholder="IBD2025"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select
-                value={status}
-                onValueChange={(v) => setStatus(v as EventStatus)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="live">Live</SelectItem>
-                  <SelectItem value="running">Running</SelectItem>
-                  <SelectItem value="past">Past</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Organizer *</Label>
-              <Select
-                value={organizerId}
-                onValueChange={setOrganizerId}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select organizer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {organizers.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.organizerName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Venue *</Label>
-              <Select value={venueId} onValueChange={setVenueId} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select venue" />
-                </SelectTrigger>
-                <SelectContent>
-                  {venues.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Start Date *</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>End Date *</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Event Image URL</Label>
-            <Input
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
-              placeholder="https://..."
-            />
-            {image && (
-              <img
-                src={image}
-                alt="preview"
-                className="mt-2 h-24 rounded-md object-cover"
-              />
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              Create Event
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function VenueDialog({
-  open,
-  editing,
-  onOpenChange,
-  onSubmit,
-}: {
-  open: boolean;
-  editing: Venue | null;
-  onOpenChange: (o: boolean) => void;
-  onSubmit: (v: Omit<Venue, "id">) => void;
-}) {
-  const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
-  const [image, setImage] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
-  const [country, setCountry] = useState("");
-  const [website, setWebsite] = useState("");
-  const [googleMapLink, setGoogleMapLink] = useState("");
-
-  useEffect(() => {
-    if (editing) {
-      setName(editing.name);
-      setAddress(editing.address);
-      setImage(editing.image || "");
-      setCity(editing.city);
-      setState(editing.state);
-      setCountry(editing.country);
-      setWebsite(editing.website);
-      setGoogleMapLink(editing.googleMapLink);
-    }
-  }, [editing, open]);
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({
-      name,
-      address,
-      image,
-      city,
-      state,
-      country,
-      website,
-      googleMapLink,
-    });
-    setName("");
-    setAddress("");
-    setImage("");
-    setCity("");
-    setState("");
-    setCountry("");
-    setWebsite("");
-    setGoogleMapLink("");
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editing ? "Edit Venue" : "Add New Venue"}</DialogTitle>
-          <DialogDescription>
-            All fields marked with * are required.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Venue Name *</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              placeholder="HICC Novotel"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Address *</Label>
-            <Textarea
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              required
-              placeholder="Full address"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Upload Image *</Label>
-            <div className="border-2 border-dashed border-neutral-200 rounded-lg p-6 text-center hover:border-orange-400 transition cursor-pointer">
-              {image ? (
-                <div className="relative">
-                  <img
-                    src={image}
-                    alt="venue"
-                    className="mx-auto h-28 rounded-md object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setImage("");
-                    }}
-                    className="mt-2 text-xs text-red-600"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <div className="text-neutral-400">
-                  <ImageIcon className="w-8 h-8 mx-auto mb-2" />
-                  <div className="text-sm">
-                    Paste image URL or click to upload
-                  </div>
-                  <Input
-                    value={image}
-                    onChange={(e) => setImage(e.target.value)}
-                    placeholder="https://images.pexels.com/..."
-                    className="mt-3 max-w-xs mx-auto"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>City *</Label>
-              <Input
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>State *</Label>
-              <Input
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Country *</Label>
-              <Input
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Website *</Label>
-            <Input
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
-              required
-              placeholder="https://..."
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Google Map Link *</Label>
-            <Input
-              value={googleMapLink}
-              onChange={(e) => setGoogleMapLink(e.target.value)}
-              required
-              placeholder="https://maps.google.com/..."
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              {editing ? "Save Changes" : "Add Venue"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function OrganizerDialog({
-  open,
-  editing,
-  onOpenChange,
-  onSubmit,
-}: {
-  open: boolean;
-  editing: Organizer | null;
-  onOpenChange: (o: boolean) => void;
-  onSubmit: (o: Omit<Organizer, "id">) => void;
-}) {
-  const [organizerName, setOrganizerName] = useState("");
-  const [contactPersonName, setContactPersonName] = useState("");
-  const [contactPersonEmail, setContactPersonEmail] = useState("");
-  const [contactPersonMobile, setContactPersonMobile] = useState("");
-
-  useEffect(() => {
-    if (editing) {
-      setOrganizerName(editing.organizerName);
-      setContactPersonName(editing.contactPersonName);
-      setContactPersonEmail(editing.contactPersonEmail);
-      setContactPersonMobile(editing.contactPersonMobile);
-    }
-  }, [editing, open]);
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({
-      organizerName,
-      contactPersonName,
-      contactPersonEmail,
-      contactPersonMobile,
-    });
-    setOrganizerName("");
-    setContactPersonName("");
-    setContactPersonEmail("");
-    setContactPersonMobile("");
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {editing ? "Edit Organizer" : "Add New Organizer"}
-          </DialogTitle>
-          <DialogDescription>
-            All fields marked with * are required.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Organizer Name *</Label>
-            <Input
-              value={organizerName}
-              onChange={(e) => setOrganizerName(e.target.value)}
-              required
-              placeholder="Onsitewala"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Contact Person Name *</Label>
-            <Input
-              value={contactPersonName}
-              onChange={(e) => setContactPersonName(e.target.value)}
-              required
-              placeholder="Rajesh Kumar"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Contact Person Email Id *</Label>
-            <Input
-              type="email"
-              value={contactPersonEmail}
-              onChange={(e) => setContactPersonEmail(e.target.value)}
-              required
-              placeholder="rajesh@org.com"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Contact Person Mobile No. *</Label>
-            <Input
-              value={contactPersonMobile}
-              onChange={(e) => setContactPersonMobile(e.target.value)}
-              required
-              placeholder="+91 9876543210"
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              {editing ? "Save Changes" : "Add Organizer"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

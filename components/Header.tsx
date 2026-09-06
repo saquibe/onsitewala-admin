@@ -14,6 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateRange } from "@/lib/utils/date";
 
 interface HeaderProps {
   showEventInfo?: boolean;
@@ -100,7 +101,7 @@ export function Header({
               )}
               {startDate && endDate && (
                 <span className="text-xs text-white/60 hidden lg:inline">
-                  {startDate} → {endDate}
+                  {formatDateRange(startDate, endDate)}
                 </span>
               )}
             </>

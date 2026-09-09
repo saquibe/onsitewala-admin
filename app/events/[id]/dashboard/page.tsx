@@ -6,71 +6,208 @@ import { useRouter } from "next/navigation";
 import {
   ShieldCheck,
   LayoutDashboard,
+  ScanLine,
+  Printer,
   FolderTree,
   KeyRound,
   Database,
   Settings,
-  ChevronLeft,
-  Award,
-  ScanLine,
-  MoreVertical,
-  Edit,
-  Trash2,
-  Plus,
-  ArrowRight,
-  Search,
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Header } from "@/components/Header";
-import { toast, useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { eventsApi } from "@/lib/api";
 import type { Event } from "@/lib/api";
+import {
+  ScanCenter,
+  PrintCenter,
+  CategoryManagement,
+  DataManagement,
+} from "@/components/events";
+import type {
+  UserType,
+  CategoryGroup,
+  Category,
+  CategoryPermission,
+  PrintUser,
+  ScanUser,
+  ScanCategory,
+} from "@/components/events/types";
+import { Privileges } from "@/components/events/Privileges";
+import { SettingsSection } from "@/components/events/SettingsSection";
+import { DashboardSection } from "@/components/events/DashboardSection";
 
-type Section = "dashboard" | "category" | "privileges" | "data" | "settings";
-type CategoryTab = "attendee" | "certificate" | "scan";
+type Section =
+  | "dashboard"
+  | "scan"
+  | "print"
+  | "category"
+  | "privileges"
+  | "data"
+  | "settings";
 
-// Category item type
-interface CategoryItem {
-  id: string;
-  badgeType: string;
-  scanCategory: "single" | "multi" | "none";
-  status: "active" | "inactive";
-  type: CategoryTab;
-}
+// Mock Data
+const mockUserTypes: UserType[] = [
+  { id: "6", typeName: "Delegate" },
+  { id: "38", typeName: "Conference Manager" },
+  { id: "39", typeName: "Exhibitor" },
+  { id: "28", typeName: "Faculty" },
+  { id: "30", typeName: "Organising Committee" },
+  { id: "42", typeName: "Accompanying person" },
+  { id: "44", typeName: "Reception Committee" },
+];
+
+const mockCategoryGroups: CategoryGroup[] = [
+  {
+    id: "1",
+    groupName: "Certificate Scan",
+    description: "Certificate scanning categories",
+  },
+  {
+    id: "2",
+    groupName: "Food Scan",
+    description: "Food and dining categories",
+  },
+  { id: "3", groupName: "Gift", description: "Gift and kit categories" },
+];
+
+const mockCategories: Category[] = [
+  {
+    id: "46",
+    code: "10",
+    name: "Certificate",
+    groupId: "1",
+    active: true,
+    metadata: { day: 1 },
+  },
+  {
+    id: "44",
+    code: "14",
+    name: "DAY 01 BREAKFAST (05-09-2026)",
+    groupId: "2",
+    active: true,
+    metadata: { day: 1, session: "Breakfast" },
+  },
+  {
+    id: "48",
+    code: "66",
+    name: "DAY 01 Dinner (05-09-2026)",
+    groupId: "2",
+    active: true,
+    metadata: { day: 1, session: "Dinner" },
+  },
+  {
+    id: "54",
+    code: "121",
+    name: "DAY 01 Dinner Plate Count (05-09-2026)",
+    groupId: "2",
+    active: true,
+    metadata: { day: 1, session: "Dinner Plate Count" },
+  },
+  {
+    id: "47",
+    code: "11",
+    name: "DAY 01 LUNCH (05-09-2026)",
+    groupId: "2",
+    active: true,
+    metadata: { day: 1, session: "Lunch" },
+  },
+  {
+    id: "36",
+    code: "33",
+    name: "KIT",
+    groupId: "3",
+    active: true,
+    metadata: { day: 1 },
+  },
+];
+
+const mockScanCategories: ScanCategory[] = [
+  { id: "1", name: "Certificate", group: "Certificate Scan", count: 46 },
+  {
+    id: "2",
+    name: "DAY 01 BREAKFAST (05-09-2026)",
+    group: "Food Scan",
+    count: 44,
+  },
+  {
+    id: "3",
+    name: "DAY 01 Dinner (05-09-2026)",
+    group: "Food Scan",
+    count: 48,
+  },
+  { id: "4", name: "KIT", group: "Gift", count: 36 },
+];
+
+const mockPrintUsers: PrintUser[] = [
+  {
+    id: "1",
+    registrationNo: "SPOT-0041",
+    userTypeId: "6",
+    userTypeName: "Delegate",
+    email: "",
+    fullName: "DR SAIVARDHAN REDDY",
+    phone: "",
+    printed: true,
+  },
+  {
+    id: "2",
+    registrationNo: "SPOT-0040",
+    userTypeId: "6",
+    userTypeName: "Delegate",
+    email: "",
+    fullName: "DR POORNA ROYAL",
+    phone: "",
+    printed: true,
+  },
+  {
+    id: "3",
+    registrationNo: "SPOT-0039",
+    userTypeId: "6",
+    userTypeName: "Delegate",
+    email: "",
+    fullName: "DR SAMBARAJU SINDHU",
+    phone: "",
+    printed: false,
+  },
+  {
+    id: "4",
+    registrationNo: "SPOT-0038",
+    userTypeId: "6",
+    userTypeName: "Delegate",
+    email: "",
+    fullName: "DR SAI SUJALA NEELA",
+    phone: "",
+    printed: false,
+  },
+];
+
+const mockScanUsers: ScanUser[] = [
+  {
+    id: "1",
+    registrationNo: "SPOT-0041",
+    userTypeName: "Delegate",
+    email: "",
+    fullName: "DR SAIVARDHAN REDDY",
+    phone: "",
+    scanned: false,
+  },
+  {
+    id: "2",
+    registrationNo: "SPOT-0040",
+    userTypeName: "Delegate",
+    email: "",
+    fullName: "DR POORNA ROYAL",
+    phone: "",
+    scanned: false,
+  },
+];
+
+const mockPermissions: CategoryPermission[] = [
+  { userTypeId: "6", categoryId: "46", allowed: true },
+  { userTypeId: "6", categoryId: "44", allowed: false },
+];
 
 export default function EventDashboardPage({
   params,
@@ -83,16 +220,17 @@ export default function EventDashboardPage({
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [section, setSection] = useState<Section>("dashboard");
-  const [catTab, setCatTab] = useState<CategoryTab>("attendee");
-  const [categories, setCategories] = useState<CategoryItem[]>([]);
-  const [catSearch, setCatSearch] = useState("");
-  const [catFilter, setCatFilter] = useState<"all" | "active" | "inactive">(
-    "all",
-  );
-  const [editingCat, setEditingCat] = useState<CategoryItem | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Load event data
+  // State
+  const [userTypes, setUserTypes] = useState<UserType[]>(mockUserTypes);
+  const [categoryGroups, setCategoryGroups] =
+    useState<CategoryGroup[]>(mockCategoryGroups);
+  const [categories, setCategories] = useState<Category[]>(mockCategories);
+  const [permissions, setPermissions] =
+    useState<CategoryPermission[]>(mockPermissions);
+  const [printUsers, setPrintUsers] = useState<PrintUser[]>(mockPrintUsers);
+  const [scanUsers, setScanUsers] = useState<ScanUser[]>(mockScanUsers);
+
   useEffect(() => {
     loadEvent();
   }, [id]);
@@ -102,20 +240,271 @@ export default function EventDashboardPage({
     try {
       const eventData = await eventsApi.getEventById(id);
       setEvent(eventData);
-
-      // Load categories from API (you'll need to implement this)
-      // For now, using empty array
-      setCategories([]);
     } catch (error: any) {
-      console.error("Failed to load event:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to load event details",
+        description: error.message || "Failed to load event",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  // ============================================
+  // Print Center Handlers
+  // ============================================
+  const handleAddUser = (
+    user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
+    userPermissions: CategoryPermission[],
+  ) => {
+    const newUser: PrintUser = {
+      ...user,
+      id: `user_${Date.now()}`,
+      printed: false,
+      userTypeName:
+        userTypes.find((ut) => ut.id === user.userTypeId)?.typeName || "",
+      permissions: userPermissions,
+    };
+    setPrintUsers([...printUsers, newUser]);
+
+    userPermissions.forEach((p) => {
+      const existing = permissions.find(
+        (perm) =>
+          perm.userTypeId === p.userTypeId && perm.categoryId === p.categoryId,
+      );
+      if (!existing) {
+        setPermissions((prev) => [...prev, p]);
+      }
+    });
+
+    toast({ title: "Success", description: "User added successfully" });
+  };
+
+  const handleEditUser = (
+    id: string,
+    data: Partial<PrintUser>,
+    userPermissions: CategoryPermission[],
+  ) => {
+    setPrintUsers(
+      printUsers.map((u) => {
+        if (u.id === id) {
+          return { ...u, ...data, permissions: userPermissions };
+        }
+        return u;
+      }),
+    );
+
+    userPermissions.forEach((p) => {
+      const existing = permissions.find(
+        (perm) =>
+          perm.userTypeId === p.userTypeId && perm.categoryId === p.categoryId,
+      );
+      if (existing) {
+        setPermissions((prev) =>
+          prev.map((perm) =>
+            perm.userTypeId === p.userTypeId && perm.categoryId === p.categoryId
+              ? { ...perm, allowed: p.allowed }
+              : perm,
+          ),
+        );
+      } else {
+        setPermissions((prev) => [...prev, p]);
+      }
+    });
+
+    toast({ title: "Success", description: "User updated successfully" });
+  };
+
+  const handleDeleteUser = (id: string) => {
+    setPrintUsers(printUsers.filter((u) => u.id !== id));
+  };
+
+  const handlePrintBadge = (userId: string) => {
+    setPrintUsers(
+      printUsers.map((u) => (u.id === userId ? { ...u, printed: true } : u)),
+    );
+  };
+
+  const handleBulkPrint = (userIds: string[]) => {
+    setPrintUsers(
+      printUsers.map((u) =>
+        userIds.includes(u.id) ? { ...u, printed: true } : u,
+      ),
+    );
+  };
+
+  const handleScanUser = (userId: string, categoryId: string) => {
+    setScanUsers(
+      scanUsers.map((u) => (u.id === userId ? { ...u, scanned: true } : u)),
+    );
+  };
+
+  // ============================================
+  // User Type Handlers
+  // ============================================
+  const handleAddUserType = (name: string) => {
+    const newType: UserType = {
+      id: `type_${Date.now()}`,
+      typeName: name,
+    };
+    setUserTypes([...userTypes, newType]);
+    toast({ title: "Success", description: "User type added successfully" });
+  };
+
+  const handleUpdateUserType = (id: string, name: string) => {
+    setUserTypes(
+      userTypes.map((ut) => (ut.id === id ? { ...ut, typeName: name } : ut)),
+    );
+    toast({ title: "Success", description: "User type updated successfully" });
+  };
+
+  const handleDeleteUserType = (id: string) => {
+    setUserTypes(userTypes.filter((ut) => ut.id !== id));
+    toast({ title: "Success", description: "User type deleted successfully" });
+  };
+
+  // ============================================
+  // Category Group Handlers
+  // ============================================
+  const handleAddCategoryGroup = (group: Omit<CategoryGroup, "id">) => {
+    const newGroup: CategoryGroup = {
+      ...group,
+      id: `group_${Date.now()}`,
+    };
+    setCategoryGroups([...categoryGroups, newGroup]);
+    toast({
+      title: "Success",
+      description: "Category group added successfully",
+    });
+  };
+
+  const handleUpdateCategoryGroup = (
+    id: string,
+    data: Partial<CategoryGroup>,
+  ) => {
+    setCategoryGroups(
+      categoryGroups.map((g) => (g.id === id ? { ...g, ...data } : g)),
+    );
+    toast({
+      title: "Success",
+      description: "Category group updated successfully",
+    });
+  };
+
+  const handleDeleteCategoryGroup = (id: string) => {
+    setCategoryGroups(categoryGroups.filter((g) => g.id !== id));
+    toast({
+      title: "Success",
+      description: "Category group deleted successfully",
+    });
+  };
+
+  // ============================================
+  // Category Handlers
+  // ============================================
+  const handleAddCategory = (category: Omit<Category, "id">) => {
+    const newCategory: Category = {
+      ...category,
+      id: `cat_${Date.now()}`,
+    };
+    setCategories([...categories, newCategory]);
+
+    // Also add to scan categories if needed
+    // You can add logic here to sync with scan categories
+
+    toast({ title: "Success", description: "Category added successfully" });
+  };
+
+  const handleUpdateCategory = (id: string, data: Partial<Category>) => {
+    setCategories(categories.map((c) => (c.id === id ? { ...c, ...data } : c)));
+    toast({ title: "Success", description: "Category updated successfully" });
+  };
+
+  const handleDeleteCategory = (id: string) => {
+    setCategories(categories.filter((c) => c.id !== id));
+    toast({ title: "Success", description: "Category deleted successfully" });
+  };
+
+  // ============================================
+  // Permission Handlers
+  // ============================================
+  const handleTogglePermission = (
+    userTypeId: string,
+    categoryId: string,
+    allowed: boolean,
+  ) => {
+    const existing = permissions.find(
+      (p) => p.userTypeId === userTypeId && p.categoryId === categoryId,
+    );
+    if (existing) {
+      setPermissions(
+        permissions.map((p) =>
+          p.userTypeId === userTypeId && p.categoryId === categoryId
+            ? { ...p, allowed }
+            : p,
+        ),
+      );
+    } else {
+      setPermissions([...permissions, { userTypeId, categoryId, allowed }]);
+    }
+  };
+
+  const handleBulkAllowAll = (userTypeId: string) => {
+    const newPermissions = categories.map((cat) => ({
+      userTypeId,
+      categoryId: cat.id,
+      allowed: true,
+    }));
+    setPermissions([
+      ...permissions.filter((p) => p.userTypeId !== userTypeId),
+      ...newPermissions,
+    ]);
+  };
+
+  const handleBulkBlockAll = (userTypeId: string) => {
+    const newPermissions = categories.map((cat) => ({
+      userTypeId,
+      categoryId: cat.id,
+      allowed: false,
+    }));
+    setPermissions([
+      ...permissions.filter((p) => p.userTypeId !== userTypeId),
+      ...newPermissions,
+    ]);
+  };
+
+  // ============================================
+  // Data Management Handlers
+  // ============================================
+  const handleImportCSV = async (file: File) => {
+    // API call to import CSV
+    toast({ title: "Importing", description: `Importing ${file.name}...` });
+  };
+
+  const handleExportCSV = () => {
+    toast({ title: "Exporting", description: "Downloading users CSV..." });
+  };
+
+  const handleExportWithScans = () => {
+    toast({
+      title: "Exporting",
+      description: "Downloading users with scan data...",
+    });
+  };
+
+  const handleDeleteAllUsers = () => {
+    setPrintUsers([]);
+    setScanUsers([]);
+    toast({
+      title: "Deleted",
+      description: "All users have been deleted",
+      variant: "destructive",
+    });
+  };
+
+  const handleRefreshData = () => {
+    toast({ title: "Refreshed", description: "Data refreshed successfully" });
   };
 
   if (loading) {
@@ -153,101 +542,17 @@ export default function EventDashboardPage({
     );
   }
 
-  const refreshCats = () => {
-    // Refresh categories from API
-    // For now, just keep current state
-  };
-
-  const filteredCats = categories
-    .filter((c) => c.type === catTab)
-    .filter((c) => catFilter === "all" || c.status === catFilter)
-    .filter((c) => c.badgeType.toLowerCase().includes(catSearch.toLowerCase()));
-
-  const openEdit = (c: CategoryItem) => {
-    setEditingCat(c);
-    setSheetOpen(true);
-  };
-
-  const openAdd = () => {
-    setEditingCat(null);
-    setSheetOpen(true);
-  };
-
-  const onDelete = (cid: string) => {
-    // Delete category from API
-    // For now, just remove from local state
-    setCategories(categories.filter((c) => c.id !== cid));
-    toast({
-      title: "Success",
-      description: "Category deleted successfully",
-    });
-  };
-
-  const dashCards = [
-    {
-      title: "Badge Printed",
-      count: 1248,
-      icon: Award,
-      color: "from-orange-500 to-amber-500",
-      bg: "bg-orange-50",
-      text: "text-orange-600",
-    },
-    {
-      title: "Certificate Printed",
-      count: 432,
-      icon: Award,
-      color: "from-blue-500 to-cyan-500",
-      bg: "bg-blue-50",
-      text: "text-blue-600",
-    },
-    {
-      title: "Single Scan Printed",
-      count: 890,
-      icon: ScanLine,
-      color: "from-green-500 to-emerald-500",
-      bg: "bg-green-50",
-      text: "text-green-600",
-    },
-    {
-      title: "Multi Scan Printed",
-      count: 156,
-      icon: ScanLine,
-      color: "from-purple-500 to-fuchsia-500",
-      bg: "bg-purple-50",
-      text: "text-purple-600",
-    },
-  ];
-
-  // Get status color based on dynamicStatus
-  const getStatusColor = (status?: string) => {
-    const colors: Record<string, string> = {
-      Upcoming: "bg-blue-100 text-blue-700 border-blue-200",
-      Live: "bg-green-100 text-green-700 border-green-200",
-      Past: "bg-neutral-100 text-neutral-500 border-neutral-200",
-    };
-    return (
-      colors[status || ""] ||
-      "bg-neutral-100 text-neutral-600 border-neutral-200"
-    );
-  };
-
-  const getStatusLabel = (status?: string) => status || "Draft";
-
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
-      {/* Top event header */}
       <Header
         showEventInfo={true}
         eventName={event.eventName}
         eventStatus={event.dynamicStatus || "Draft"}
         startDate={event.startDate}
         endDate={event.endDate}
-        // showBackButton={true}
-        // backUrl="/events"
       />
 
       <div className="flex-1 flex">
-        {/* Sidebar */}
         <aside className="w-60 bg-white border-r border-neutral-200 flex flex-col">
           <div className="p-4 border-b border-neutral-100">
             <div className="flex items-center gap-2 text-xs text-neutral-500">
@@ -255,50 +560,31 @@ export default function EventDashboardPage({
               <span>Admin Panel</span>
             </div>
           </div>
-          <nav className="flex-1 p-3 space-y-1">
+          <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
             <SidebarItem
               icon={LayoutDashboard}
               label="Dashboard"
               active={section === "dashboard"}
               onClick={() => setSection("dashboard")}
             />
-            <div>
-              <SidebarItem
-                icon={FolderTree}
-                label="Category"
-                active={section === "category"}
-                onClick={() => setSection("category")}
-                hasChildren
-              />
-              {section === "category" && (
-                <div className="ml-6 mt-1 space-y-1 border-l border-neutral-200 pl-3">
-                  <SubItem
-                    label="Attendee"
-                    active={catTab === "attendee"}
-                    onClick={() => {
-                      setCatTab("attendee");
-                      setSection("category");
-                    }}
-                  />
-                  <SubItem
-                    label="Certificate"
-                    active={catTab === "certificate"}
-                    onClick={() => {
-                      setCatTab("certificate");
-                      setSection("category");
-                    }}
-                  />
-                  <SubItem
-                    label="Scan"
-                    active={catTab === "scan"}
-                    onClick={() => {
-                      setCatTab("scan");
-                      setSection("category");
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+            <SidebarItem
+              icon={ScanLine}
+              label="Scan"
+              active={section === "scan"}
+              onClick={() => setSection("scan")}
+            />
+            <SidebarItem
+              icon={Printer}
+              label="Print Center"
+              active={section === "print"}
+              onClick={() => setSection("print")}
+            />
+            <SidebarItem
+              icon={FolderTree}
+              label="Category"
+              active={section === "category"}
+              onClick={() => setSection("category")}
+            />
             <SidebarItem
               icon={KeyRound}
               label="Privileges"
@@ -320,276 +606,116 @@ export default function EventDashboardPage({
           </nav>
         </aside>
 
-        {/* Main content */}
         <main className="flex-1 overflow-auto">
-          {section === "dashboard" && (
-            <div className="p-6">
-              <div className="mb-6">
-                <h1 className="text-xl font-bold text-neutral-900">
-                  Dashboard
-                </h1>
-                <p className="text-sm text-neutral-500">
-                  Overview of {event.eventName}
-                </p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-                {dashCards.map((card) => (
-                  <div
-                    key={card.title}
-                    className="bg-white rounded-xl border border-neutral-200 p-5 hover:shadow-md transition"
-                  >
-                    <div
-                      className={`w-11 h-11 rounded-lg ${card.bg} flex items-center justify-center mb-3`}
-                    >
-                      <card.icon className={`w-5 h-5 ${card.text}`} />
-                    </div>
-                    <div className="text-3xl font-bold text-neutral-900">
-                      {card.count.toLocaleString()}
-                    </div>
-                    <div className="text-sm text-neutral-500 mt-1">
-                      {card.title}
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {section === "dashboard" && <DashboardSection event={event} />}
 
-              <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <div className="bg-white rounded-xl border border-neutral-200 p-5">
-                  <h3 className="font-bold text-neutral-900 mb-4">
-                    Recent Activity
-                  </h3>
-                  <div className="space-y-3">
-                    {[
-                      { t: "Badge printed for REG001", time: "2 min ago" },
-                      {
-                        t: "Certificate issued to Priya Patel",
-                        time: "15 min ago",
-                      },
-                      { t: "12 attendees imported via CSV", time: "1 hr ago" },
-                      { t: 'Scan category "Hall A" added', time: "3 hr ago" },
-                    ].map((a, i) => (
-                      <div key={i} className="flex items-start gap-3 text-sm">
-                        <div className="w-2 h-2 rounded-full bg-orange-500 mt-1.5" />
-                        <div className="flex-1">
-                          <div className="text-neutral-800">{a.t}</div>
-                          <div className="text-xs text-neutral-400">
-                            {a.time}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="bg-white rounded-xl border border-neutral-200 p-5">
-                  <h3 className="font-bold text-neutral-900 mb-4">
-                    Quick Actions
-                  </h3>
-                  <div className="space-y-2">
-                    {[
-                      {
-                        label: "Import attendee data",
-                        section: "data" as Section,
-                      },
-                      {
-                        label: "Add new badge category",
-                        section: "category" as Section,
-                      },
-                      {
-                        label: "Manage operator privileges",
-                        section: "privileges" as Section,
-                      },
-                      {
-                        label: "Configure event settings",
-                        section: "settings" as Section,
-                      },
-                    ].map((qa) => (
-                      <button
-                        key={qa.label}
-                        onClick={() => setSection(qa.section)}
-                        className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-neutral-50 text-left transition"
-                      >
-                        <span className="text-sm text-neutral-700">
-                          {qa.label}
-                        </span>
-                        <ArrowRight className="w-4 h-4 text-neutral-400" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+          {section === "scan" && (
+            <div className="p-6">
+              <ScanCenter
+                categories={mockScanCategories}
+                users={scanUsers}
+                userTypes={userTypes}
+                onScanUser={handleScanUser}
+              />
+            </div>
+          )}
+
+          {section === "print" && (
+            <div className="p-6">
+              <PrintCenter
+                users={printUsers}
+                userTypes={userTypes}
+                categories={categories}
+                permissions={permissions}
+                onAddUser={handleAddUser}
+                onEditUser={handleEditUser}
+                onDeleteUser={handleDeleteUser}
+                onPrintBadge={handlePrintBadge}
+                onBulkPrint={handleBulkPrint}
+                onImportCSV={handleImportCSV}
+                onExportCSV={handleExportCSV}
+                onTogglePermission={handleTogglePermission}
+                onBulkAllowAll={handleBulkAllowAll}
+                onBulkBlockAll={handleBulkBlockAll}
+              />
             </div>
           )}
 
           {section === "category" && (
             <div className="p-6">
-              {/* Sub-tabs */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex gap-1 bg-neutral-100 p-1 rounded-lg">
-                  {(["attendee", "certificate", "scan"] as CategoryTab[]).map(
-                    (t) => (
-                      <button
-                        key={t}
-                        onClick={() => setCatTab(t)}
-                        className={`px-4 py-1.5 text-sm rounded-md capitalize transition ${catTab === t ? "bg-white shadow-sm font-semibold text-orange-600" : "text-neutral-600 hover:text-neutral-900"}`}
-                      >
-                        {t}
-                      </button>
-                    ),
-                  )}
-                </div>
-                <Button
-                  onClick={openAdd}
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add Category
-                </Button>
-              </div>
-
-              {/* Search + Filter */}
-              <div className="flex gap-3 mb-4">
-                <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-                  <Input
-                    value={catSearch}
-                    onChange={(e) => setCatSearch(e.target.value)}
-                    placeholder="Search badge type..."
-                    className="pl-10"
-                  />
-                </div>
-                <Select
-                  value={catFilter}
-                  onValueChange={(v) =>
-                    setCatFilter(v as "all" | "active" | "inactive")
-                  }
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Table */}
-              <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-neutral-50">
-                      <TableHead className="w-12">#</TableHead>
-                      <TableHead>Badge Type</TableHead>
-                      <TableHead>Scan Category</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCats.map((c, i) => (
-                      <TableRow key={c.id} className="hover:bg-neutral-50">
-                        <TableCell className="text-neutral-400">
-                          {i + 1}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {c.badgeType}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {c.scanCategory}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              c.status === "active"
-                                ? "bg-green-100 text-green-700 border-0"
-                                : "bg-neutral-100 text-neutral-500 border-0"
-                            }
-                          >
-                            {c.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="w-8 h-8 rounded-md hover:bg-neutral-100 inline-flex items-center justify-center">
-                                <MoreVertical className="w-4 h-4 text-neutral-500" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEdit(c)}>
-                                <Edit className="w-4 h-4 mr-2" /> Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-red-600"
-                                onClick={() => onDelete(c.id)}
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {filteredCats.length === 0 && (
-                      <TableRow>
-                        <TableCell
-                          colSpan={5}
-                          className="text-center py-12 text-neutral-400"
-                        >
-                          No categories found. Click "Add Category" to create
-                          one.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+              <CategoryManagement
+                userTypes={userTypes}
+                categoryGroups={categoryGroups}
+                categories={categories}
+                onAddUserType={handleAddUserType}
+                onUpdateUserType={handleUpdateUserType}
+                onDeleteUserType={handleDeleteUserType}
+                onAddCategoryGroup={handleAddCategoryGroup}
+                onUpdateCategoryGroup={handleUpdateCategoryGroup}
+                onDeleteCategoryGroup={handleDeleteCategoryGroup}
+                onAddCategory={handleAddCategory}
+                onUpdateCategory={handleUpdateCategory}
+                onDeleteCategory={handleDeleteCategory}
+              />
             </div>
           )}
 
-          {section === "privileges" && <PrivilegesSection />}
-          {section === "data" && <DataSection eventId={id} />}
+          {section === "privileges" && (
+            <div className="p-6">
+              <Privileges
+                userTypes={userTypes}
+                categories={categories}
+                permissions={permissions}
+                onTogglePermission={handleTogglePermission}
+                onBulkAllowAll={handleBulkAllowAll}
+                onBulkBlockAll={handleBulkBlockAll}
+              />
+            </div>
+          )}
+
+          {section === "data" && (
+            <div className="p-6">
+              <DataManagement
+                users={printUsers}
+                userTypes={userTypes}
+                categories={categories}
+                permissions={permissions}
+                onAddUser={handleAddUser}
+                onImportCSV={handleImportCSV}
+                onExportCSV={handleExportCSV}
+                onExportWithScans={handleExportWithScans}
+                onDeleteAllUsers={handleDeleteAllUsers}
+                onRefresh={handleRefreshData}
+                onTogglePermission={handleTogglePermission}
+                onBulkAllowAll={(userTypeId, categoryIds) => {
+                  const newPermissions = categories.map((cat) => ({
+                    userTypeId,
+                    categoryId: cat.id,
+                    allowed: true,
+                  }));
+                  setPermissions([
+                    ...permissions.filter((p) => p.userTypeId !== userTypeId),
+                    ...newPermissions,
+                  ]);
+                }}
+                onBulkBlockAll={(userTypeId, categoryIds) => {
+                  const newPermissions = categories.map((cat) => ({
+                    userTypeId,
+                    categoryId: cat.id,
+                    allowed: false,
+                  }));
+                  setPermissions([
+                    ...permissions.filter((p) => p.userTypeId !== userTypeId),
+                    ...newPermissions,
+                  ]);
+                }}
+              />
+            </div>
+          )}
+
           {section === "settings" && <SettingsSection event={event} />}
         </main>
       </div>
-
-      {/* Edit/Add Category Sheet */}
-      <CategorySheet
-        open={sheetOpen}
-        editing={editingCat}
-        catTab={catTab}
-        onOpenChange={setSheetOpen}
-        onSubmit={(data) => {
-          if (editingCat) {
-            // Update category
-            setCategories(
-              categories.map((c) =>
-                c.id === editingCat.id ? { ...c, ...data } : c,
-              ),
-            );
-            toast({
-              title: "Success",
-              description: "Category updated successfully",
-            });
-          } else {
-            // Add new category
-            const newCategory: CategoryItem = {
-              id: `cat_${Date.now()}`,
-              ...data,
-              type: catTab,
-            };
-            setCategories([...categories, newCategory]);
-            toast({
-              title: "Success",
-              description: "Category added successfully",
-            });
-          }
-          refreshCats();
-          setSheetOpen(false);
-        }}
-      />
     </div>
   );
 }
@@ -599,13 +725,11 @@ function SidebarItem({
   label,
   active,
   onClick,
-  hasChildren,
 }: {
   icon: any;
   label: string;
   active: boolean;
   onClick: () => void;
-  hasChildren?: boolean;
 }) {
   return (
     <button
@@ -616,538 +740,6 @@ function SidebarItem({
         className={`w-4 h-4 ${active ? "text-orange-600" : "text-neutral-400"}`}
       />
       <span className="flex-1 text-left">{label}</span>
-      {hasChildren && (
-        <ChevronLeft
-          className={`w-3 h-3 transition ${active ? "-rotate-90" : ""}`}
-        />
-      )}
     </button>
-  );
-}
-
-function SubItem({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left text-sm px-3 py-1.5 rounded-md transition ${active ? "text-orange-700 font-semibold" : "text-neutral-500 hover:text-neutral-800"}`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function CategorySheet({
-  open,
-  editing,
-  catTab,
-  onOpenChange,
-  onSubmit,
-}: {
-  open: boolean;
-  editing: CategoryItem | null;
-  catTab: CategoryTab;
-  onOpenChange: (o: boolean) => void;
-  onSubmit: (data: Omit<CategoryItem, "id" | "type">) => void;
-}) {
-  const [badgeType, setBadgeType] = useState("");
-  const [scanCategory, setScanCategory] = useState<"single" | "multi" | "none">(
-    "single",
-  );
-  const [status, setStatus] = useState<"active" | "inactive">("active");
-
-  useEffect(() => {
-    if (editing) {
-      setBadgeType(editing.badgeType);
-      setScanCategory(editing.scanCategory);
-      setStatus(editing.status);
-    } else {
-      setBadgeType("");
-      setScanCategory("single");
-      setStatus("active");
-    }
-  }, [editing, open]);
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({ badgeType, scanCategory, status });
-    setBadgeType("");
-    setScanCategory("single");
-    setStatus("active");
-  };
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-md slide-panel">
-        <SheetHeader>
-          <SheetTitle>{editing ? "Edit Category" : "Add Category"}</SheetTitle>
-          <SheetDescription>
-            {editing
-              ? "Update the category details below."
-              : `Add a new ${catTab} category.`}
-          </SheetDescription>
-        </SheetHeader>
-        <form onSubmit={submit} className="space-y-5 px-4 py-4">
-          <div className="space-y-2">
-            <Label>Badge Type *</Label>
-            <Input
-              value={badgeType}
-              onChange={(e) => setBadgeType(e.target.value)}
-              required
-              placeholder="e.g. Delegate, Speaker"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Scan Category *</Label>
-            <Select
-              value={scanCategory}
-              onValueChange={(v) => setScanCategory(v as any)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="single">Single</SelectItem>
-                <SelectItem value="multi">Multi</SelectItem>
-                <SelectItem value="none">None</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Status *</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v as any)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <SheetFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              {editing ? "Save Changes" : "Add"}
-            </Button>
-          </SheetFooter>
-        </form>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-function PrivilegesSection() {
-  const roles = [
-    { id: "r1", name: "Administrator", users: 3, perms: ["All access"] },
-    {
-      id: "r2",
-      name: "Operator",
-      users: 12,
-      perms: ["Scan badges", "Print certificates"],
-    },
-    {
-      id: "r3",
-      name: "Data Entry",
-      users: 5,
-      perms: ["Import data", "View attendees"],
-    },
-    { id: "r4", name: "Viewer", users: 8, perms: ["View dashboard"] },
-  ];
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900">Privileges</h1>
-          <p className="text-sm text-neutral-500">
-            Manage roles and access levels for this event
-          </p>
-        </div>
-        <Button className="bg-orange-600 hover:bg-orange-700 text-white">
-          <Plus className="w-4 h-4 mr-1" /> Add Role
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {roles.map((r) => (
-          <div
-            key={r.id}
-            className="bg-white rounded-xl border border-neutral-200 p-5"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center">
-                  <KeyRound className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-neutral-900">{r.name}</h3>
-                  <div className="text-xs text-neutral-500">
-                    {r.users} users
-                  </div>
-                </div>
-              </div>
-              <Button size="sm" variant="outline">
-                Edit
-              </Button>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {r.perms.map((p) => (
-                <Badge key={p} variant="outline" className="bg-neutral-50">
-                  {p}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DataSection({ eventId }: { eventId: string }) {
-  const [attendees, setAttendees] = useState<any[]>([]);
-  const [addOpen, setAddOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [importMsg, setImportMsg] = useState("");
-
-  // Add form
-  const [regNo, setRegNo] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [regType, setRegType] = useState("");
-  const [mobile, setMobile] = useState("");
-  const [email, setEmail] = useState("");
-  const [address, setAddress] = useState("");
-
-  const refresh = () => {
-    // Refresh attendees from API
-  };
-
-  const handleAdd = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Add attendee via API
-    toast({
-      title: "Success",
-      description: "Attendee added successfully",
-    });
-    refresh();
-    setAddOpen(false);
-    setRegNo("");
-    setFirstName("");
-    setLastName("");
-    setRegType("");
-    setMobile("");
-    setEmail("");
-    setAddress("");
-  };
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    // Import CSV via API
-    setImportMsg(`Imported attendees from ${file.name}`);
-    toast({
-      title: "Success",
-      description: `Imported attendees from ${file.name}`,
-    });
-  };
-
-  const downloadSample = () => {
-    const csv =
-      'registration number,first name,last name,registration type,mobile number,email id,address\nREG001,Amit,Sharma,Delegate,9876543210,amit@email.com,"123 MG Road, Bengaluru"\n';
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "sample-attendees.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const filtered = attendees.filter(
-    (a) =>
-      a.firstName?.toLowerCase().includes(search.toLowerCase()) ||
-      a.lastName?.toLowerCase().includes(search.toLowerCase()) ||
-      a.emailId?.toLowerCase().includes(search.toLowerCase()) ||
-      a.registrationNumber?.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900">Data</h1>
-          <p className="text-sm text-neutral-500">
-            Import or manually add attendee data
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={downloadSample}>
-            <Database className="w-4 h-4 mr-1" /> Download Sample CSV
-          </Button>
-          <Button
-            onClick={() => setAddOpen(true)}
-            className="bg-orange-600 hover:bg-orange-700 text-white"
-          >
-            <Plus className="w-4 h-4 mr-1" /> Add Attendee
-          </Button>
-        </div>
-      </div>
-
-      {/* Import dropzone */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6 mb-5">
-        <div className="border-2 border-dashed border-neutral-200 rounded-lg p-8 text-center hover:border-orange-400 transition">
-          <Database className="w-10 h-10 mx-auto text-neutral-300 mb-3" />
-          <div className="font-medium text-neutral-700">
-            Import data from file
-          </div>
-          <div className="text-sm text-neutral-400 mt-1">
-            Upload a .csv file with attendee data. Download the sample to see
-            the format.
-          </div>
-          <label className="mt-4 inline-block">
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleFile}
-              className="hidden"
-            />
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md cursor-pointer hover:bg-orange-700 text-sm">
-              <Plus className="w-4 h-4" /> Choose CSV file
-            </span>
-          </label>
-          {importMsg && (
-            <div className="mt-3 text-sm text-green-600">{importMsg}</div>
-          )}
-        </div>
-      </div>
-
-      {/* Attendees table */}
-      <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-        <div className="p-4 border-b border-neutral-100">
-          <div className="relative max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search attendees..."
-              className="pl-10"
-            />
-          </div>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-neutral-50">
-              <TableHead>Reg. No.</TableHead>
-              <TableHead>First Name</TableHead>
-              <TableHead>Last Name</TableHead>
-              <TableHead>Reg. Type</TableHead>
-              <TableHead>Mobile</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Address</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map((a, index) => (
-              <TableRow key={index} className="hover:bg-neutral-50">
-                <TableCell className="font-medium">
-                  {a.registrationNumber}
-                </TableCell>
-                <TableCell>{a.firstName}</TableCell>
-                <TableCell>{a.lastName}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{a.registrationType}</Badge>
-                </TableCell>
-                <TableCell>{a.mobileNumber}</TableCell>
-                <TableCell>{a.emailId}</TableCell>
-                <TableCell className="max-w-xs truncate text-neutral-500">
-                  {a.address}
-                </TableCell>
-              </TableRow>
-            ))}
-            {filtered.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="text-center py-12 text-neutral-400"
-                >
-                  No attendees yet. Import a CSV or add one manually.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Add Attendee Sheet */}
-      <Sheet open={addOpen} onOpenChange={setAddOpen}>
-        <SheetContent className="sm:max-w-md slide-panel">
-          <SheetHeader>
-            <SheetTitle>Add Attendee</SheetTitle>
-            <SheetDescription>
-              Manually add a new attendee record.
-            </SheetDescription>
-          </SheetHeader>
-          <form onSubmit={handleAdd} className="space-y-4 px-4 py-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2 col-span-2">
-                <Label>Registration Number *</Label>
-                <Input
-                  value={regNo}
-                  onChange={(e) => setRegNo(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>First Name *</Label>
-                <Input
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Last Name *</Label>
-                <Input
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Registration Type *</Label>
-                <Input
-                  value={regType}
-                  onChange={(e) => setRegType(e.target.value)}
-                  required
-                  placeholder="Delegate"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Mobile Number *</Label>
-                <Input
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2 col-span-2">
-                <Label>Email Id *</Label>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2 col-span-2">
-                <Label>Address *</Label>
-                <Textarea
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-            <SheetFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setAddOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-orange-600 hover:bg-orange-700 text-white"
-              >
-                Add Attendee
-              </Button>
-            </SheetFooter>
-          </form>
-        </SheetContent>
-      </Sheet>
-    </div>
-  );
-}
-
-function SettingsSection({ event }: { event: Event }) {
-  const { toast } = useToast();
-
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Update event settings via API
-    toast({
-      title: "Success",
-      description: "Settings updated successfully",
-    });
-  };
-
-  return (
-    <div className="p-6 max-w-2xl">
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-neutral-900">Settings</h1>
-        <p className="text-sm text-neutral-500">Configure this event</p>
-      </div>
-      <form onSubmit={handleSaveSettings}>
-        <div className="bg-white rounded-xl border border-neutral-200 p-6 space-y-4">
-          <div className="space-y-2">
-            <Label>Event Name</Label>
-            <Input defaultValue={event.eventName} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Event Short Name</Label>
-              <Input defaultValue={event.eventShortName} />
-            </div>
-            <div className="space-y-2">
-              <Label>Operator Login Code</Label>
-              <Input defaultValue={event.operatorLoginCode} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <Input
-                type="date"
-                defaultValue={
-                  new Date(event.startDate).toISOString().split("T")[0]
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>End Date</Label>
-              <Input
-                type="date"
-                defaultValue={
-                  new Date(event.endDate).toISOString().split("T")[0]
-                }
-              />
-            </div>
-          </div>
-          <Button
-            type="submit"
-            className="bg-orange-600 hover:bg-orange-700 text-white"
-          >
-            Save Settings
-          </Button>
-        </div>
-      </form>
-    </div>
   );
 }

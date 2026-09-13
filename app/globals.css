@@ -1,3 +1,4 @@
+/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -24,10 +25,6 @@
     --input: 30 15% 88%;
     --ring: 24 95% 45%;
     --radius: 0.5rem;
-    --brand-orange: #e07825;
-    --brand-dark: #2c1a0e;
-    --brand-gradient-start: #1a0a00;
-    --brand-gradient-end: #8b4513;
   }
 }
 
@@ -35,52 +32,175 @@
   * {
     @apply border-border;
   }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* Prevent zoom on input focus on iOS */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  @media (min-width: 768px) {
+    input,
+    select,
+    textarea {
+      font-size: 14px !important;
+    }
+  }
+
+  /* Better touch targets */
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+    min-height: 36px;
+  }
+
+  @media (max-width: 640px) {
+    button,
+    a,
+    [role="button"] {
+      min-height: 40px;
+    }
   }
 }
 
-.brand-gradient {
-  background: linear-gradient(
-    135deg,
-    #1a0a00 0%,
-    #3d1f00 40%,
-    #8b4513 80%,
-    #c8681e 100%
-  );
-}
-
-.brand-header-gradient {
-  background: linear-gradient(90deg, #1a0a00 0%, #3d1f00 50%, #7a3a10 100%);
-}
-
-.sidebar-icon-active {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-}
-
-.slide-panel {
-  animation: slideInRight 0.3s ease-out;
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
+@layer components {
+  /* Brand gradients */
+  .brand-gradient {
+    background: linear-gradient(
+      135deg,
+      #1a0a00 0%,
+      #3d1f00 40%,
+      #8b4513 80%,
+      #c8681e 100%
+    );
   }
-  to {
-    transform: translateX(0);
-    opacity: 1;
+
+  .brand-header-gradient {
+    background: linear-gradient(90deg, #1a0a00 0%, #3d1f00 50%, #7a3a10 100%);
   }
-}
 
-.event-card:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  transition: box-shadow 0.2s ease;
-}
+  /* Safe area support for notched devices */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
 
-.nav-tab-active {
-  border-bottom: 2px solid #e07825;
-  color: #e07825;
-  font-weight: 600;
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  /* Slide panel animation */
+  .slide-panel {
+    animation: slideInRight 0.3s ease-out;
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  /* Event card */
+  .event-card {
+    transition:
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  .event-card:active {
+    transform: scale(0.98);
+  }
+
+  @media (hover: hover) {
+    .event-card:hover {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      transform: translateY(-2px);
+    }
+  }
+
+  /* Nav tab */
+  .nav-tab-active {
+    border-bottom: 2px solid #e07825;
+    color: #e07825;
+    font-weight: 600;
+  }
+
+  /* Scrollbar - thin on mobile */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 2px;
+  }
+
+  @media (min-width: 768px) {
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+  }
+
+  /* Hide scrollbar utility */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Mobile table wrapper */
+  .table-wrapper {
+    @apply overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Sticky table columns */
+  .sticky-col-left {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: inherit;
+  }
+
+  .sticky-col-right {
+    position: sticky;
+    right: 0;
+    z-index: 10;
+    background-color: inherit;
+  }
+
+  /* Mobile bottom navigation */
+  .mobile-nav {
+    @apply fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-neutral-200;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
 }

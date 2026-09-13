@@ -2,6 +2,7 @@
 export { DashboardSection } from "./DashboardSection";
 export { ScanCenter } from "./ScanCenter";
 export { PrintCenter } from "./PrintCenter";
+export { SpotRegistration } from "./SpotRegistration";
 export { CategoryManagement } from "./CategoryManagement";
 export { Privileges } from "./Privileges";
 export { DataManagement } from "./DataManagement";

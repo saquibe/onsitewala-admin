@@ -23,7 +23,6 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Basic validation
     if (!email || !password) {
       toast({
         title: "Validation Error",
@@ -54,15 +53,16 @@ export default function LoginPage() {
     }
   };
 
-  // Pre-fill demo credentials for convenience (optional)
   const fillDemoCredentials = () => {
     setEmail("asifsaascraft@gmail.com");
     setPassword("12345678");
   };
 
+  const isDisabled = loading || authLoading;
+
   return (
-    <div className="min-h-screen flex">
-      {/* Left - Brand panel */}
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* Left - Brand panel (hidden on mobile) */}
       <div className="hidden lg:flex lg:w-1/2 brand-gradient relative overflow-hidden">
         <div
           className="absolute inset-0 opacity-10"
@@ -72,7 +72,7 @@ export default function LoginPage() {
             backgroundSize: "50px 50px",
           }}
         />
-        <div className="relative z-10 flex flex-col justify-between p-12 text-white">
+        <div className="relative z-10 flex flex-col justify-between p-8 xl:p-12 text-white w-full">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-white/10 backdrop-blur flex items-center justify-center">
               <ShieldCheck className="w-6 h-6 text-orange-400" />
@@ -84,27 +84,37 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-6">
-            <h1 className="text-4xl font-bold leading-tight">
+            <h1 className="text-3xl xl:text-4xl font-bold leading-tight">
               Manage your events
               <br />
               with confidence.
             </h1>
-            <p className="text-white/70 text-lg max-w-md">
+            <p className="text-white/70 text-base xl:text-lg max-w-md">
               Badges, certificates, scanning and attendee data — all in one
               elegant admin panel built for event organizers.
             </p>
-            <div className="flex gap-8 pt-4">
+            <div className="flex gap-6 xl:gap-8 pt-4">
               <div>
-                <div className="text-3xl font-bold text-orange-400">120+</div>
-                <div className="text-sm text-white/60">Events Managed</div>
+                <div className="text-2xl xl:text-3xl font-bold text-orange-400">
+                  120+
+                </div>
+                <div className="text-xs xl:text-sm text-white/60">
+                  Events Managed
+                </div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-orange-400">50K+</div>
-                <div className="text-sm text-white/60">Attendees Scanned</div>
+                <div className="text-2xl xl:text-3xl font-bold text-orange-400">
+                  50K+
+                </div>
+                <div className="text-xs xl:text-sm text-white/60">
+                  Attendees Scanned
+                </div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-orange-400">99.9%</div>
-                <div className="text-sm text-white/60">Uptime</div>
+                <div className="text-2xl xl:text-3xl font-bold text-orange-400">
+                  99.9%
+                </div>
+                <div className="text-xs xl:text-sm text-white/60">Uptime</div>
               </div>
             </div>
           </div>
@@ -115,27 +125,30 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right - Login form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-white">
-        <div className="w-full max-w-md space-y-8">
+      {/* Right - Login form (visible on mobile) */}
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 bg-white min-h-screen lg:min-h-0">
+        <div className="w-full max-w-md space-y-6 sm:space-y-8">
           <div className="text-center">
+            {/* Mobile logo */}
             <div className="lg:hidden inline-flex items-center gap-2 mb-6">
               <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center">
                 <ShieldCheck className="w-6 h-6 text-white" />
               </div>
               <span className="font-bold text-lg">RegistrationTeam</span>
             </div>
-            <h2 className="text-2xl font-bold text-neutral-900">
+            <h2 className="text-xl sm:text-2xl font-bold text-neutral-900">
               Welcome back
             </h2>
-            <p className="text-neutral-500 mt-2">
+            <p className="text-sm sm:text-base text-neutral-500 mt-2">
               Sign in to your admin account
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
+              <Label htmlFor="email" className="text-sm">
+                Email address
+              </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
                 <Input
@@ -143,22 +156,25 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-11 sm:h-10"
                   placeholder="you@company.com"
                   required
-                  disabled={loading || authLoading}
+                  disabled={isDisabled}
+                  autoComplete="email"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-sm">
+                  Password
+                </Label>
                 <button
                   type="button"
                   onClick={() => router.push("/forgot-password")}
                   className="text-xs text-orange-600 hover:underline"
-                  disabled={loading || authLoading}
+                  disabled={isDisabled}
                 >
                   Forgot password?
                 </button>
@@ -170,16 +186,18 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10"
+                  className="pl-10 pr-10 h-11 sm:h-10"
                   placeholder="••••••••"
                   required
-                  disabled={loading || authLoading}
+                  disabled={isDisabled}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
-                  disabled={loading || authLoading}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1"
+                  disabled={isDisabled}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
                     <EyeOff className="w-4 h-4" />
@@ -194,9 +212,9 @@ export default function LoginPage() {
               <label className="flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">
                 <input
                   type="checkbox"
-                  className="rounded border-neutral-300"
+                  className="rounded border-neutral-300 w-4 h-4"
                   defaultChecked
-                  disabled={loading || authLoading}
+                  disabled={isDisabled}
                 />
                 Remember me
               </label>
@@ -204,10 +222,10 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              disabled={loading || authLoading}
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white h-11"
+              disabled={isDisabled}
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white h-11 sm:h-10"
             >
-              {loading || authLoading ? (
+              {isDisabled ? (
                 <>
                   <span className="animate-spin mr-2">⟳</span>
                   Signing in...
@@ -220,13 +238,12 @@ export default function LoginPage() {
               )}
             </Button>
 
-            {/* Demo credentials helper - optional */}
             <div className="text-center">
               <button
                 type="button"
                 onClick={fillDemoCredentials}
-                className="text-xs text-neutral-400 hover:text-neutral-600 underline"
-                disabled={loading || authLoading}
+                className="text-xs text-neutral-400 hover:text-neutral-600 underline py-2"
+                disabled={isDisabled}
               >
                 Fill demo credentials
               </button>

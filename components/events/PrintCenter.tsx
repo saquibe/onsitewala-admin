@@ -12,6 +12,7 @@ import {
   XCircle,
   CheckCircle,
   XCircle as XCircleIcon,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import type {
   PrintUser,
@@ -102,6 +109,7 @@ export function PrintCenter({
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [editUser, setEditUser] = useState<PrintUser | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
   const [formData, setFormData] = useState({
     registrationNo: "",
     userTypeId: "",
@@ -152,7 +160,6 @@ export function PrintCenter({
   // Reset form permissions when user type changes
   useEffect(() => {
     if (selectedUserTypeId) {
-      // Get existing permissions for this user type
       const userPermissions = permissions.filter(
         (p) => p.userTypeId === selectedUserTypeId,
       );
@@ -191,8 +198,6 @@ export function PrintCenter({
         ];
 
     setFormPermissions(newPermissions);
-
-    // Call the parent handler to update the global permissions
     onTogglePermission(selectedUserTypeId, categoryId, !current);
   };
 
@@ -247,10 +252,8 @@ export function PrintCenter({
     }
 
     if (editUser) {
-      // Edit existing user - pass the permissions along with user data
       onEditUser(editUser.id, formData, formPermissions);
     } else {
-      // Add new user - pass the permissions along with user data
       onAddUser(formData, formPermissions);
     }
     setAddUserOpen(false);
@@ -297,7 +300,6 @@ export function PrintCenter({
       note: user.note || "",
       reference: user.reference || "",
     });
-    // Load permissions for this user type
     const userPermissions = permissions.filter(
       (p) => p.userTypeId === user.userTypeId,
     );
@@ -307,12 +309,10 @@ export function PrintCenter({
 
   const openAddForm = () => {
     resetForm();
-    // Set initial user type to first one if available, or empty
     const initialUserType = userTypes.length > 0 ? userTypes[0].id : "";
     if (initialUserType) {
       setSelectedUserTypeId(initialUserType);
       setFormData({ ...formData, userTypeId: initialUserType });
-      // Load permissions for the initial user type
       const initialPermissions = permissions.filter(
         (p) => p.userTypeId === initialUserType,
       );
@@ -322,48 +322,72 @@ export function PrintCenter({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-5">
+    <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-lg font-bold text-neutral-900">Print Center</h2>
-          <p className="text-sm text-neutral-500">
-            Search users, filter by user type, paginate results, and edit user
-            details.
+          <h2 className="text-base sm:text-lg font-bold text-neutral-900">
+            Print Center
+          </h2>
+          <p className="text-xs sm:text-sm text-neutral-500">
+            Search users, filter, and print badges.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Button
             onClick={openAddForm}
-            className="bg-orange-600 hover:bg-orange-700 text-white"
+            className="bg-orange-600 hover:bg-orange-700 text-white h-9 sm:h-10 flex-1 sm:flex-none"
+            size="sm"
           >
             <Plus className="w-4 h-4 mr-1" /> Add User
           </Button>
           {selectedUsers.length > 0 && (
             <Button
               onClick={() => onBulkPrint(selectedUsers)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white h-9 sm:h-10 flex-1 sm:flex-none"
+              size="sm"
             >
-              <Printer className="w-4 h-4 mr-1" /> Print Selected (
-              {selectedUsers.length})
+              <Printer className="w-4 h-4 mr-1" /> Print ({selectedUsers.length}
+              )
             </Button>
           )}
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      {/* Mobile Search & Filter Toggle */}
+      <div className="sm:hidden flex gap-2 mb-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search..."
+            className="pl-10 h-10"
+          />
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowFilters(!showFilters)}
+          className="h-10 px-3"
+        >
+          <Filter className="w-4 h-4" />
+        </Button>
+      </div>
+
+      {/* Desktop Search and Filters */}
+      <div className="hidden sm:flex flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search..."
-            className="pl-10"
+            className="pl-10 h-10"
           />
         </div>
         <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-48 h-10">
             <SelectValue placeholder="All user types" />
           </SelectTrigger>
           <SelectContent>
@@ -381,12 +405,12 @@ export function PrintCenter({
             setSearchQuery("");
             setUserTypeFilter("all");
           }}
-          className="gap-2"
+          className="gap-2 h-10"
         >
           <XCircle className="w-4 h-4" /> Clear
         </Button>
-        <Button variant="outline" onClick={onExportCSV} className="gap-2">
-          <Download className="w-4 h-4" /> Export CSV
+        <Button variant="outline" onClick={onExportCSV} className="gap-2 h-10">
+          <Download className="w-4 h-4" /> Export
         </Button>
         <label className="cursor-pointer">
           <input
@@ -395,16 +419,68 @@ export function PrintCenter({
             onChange={handleFileUpload}
             className="hidden"
           />
-          <Button variant="outline" className="gap-2" asChild>
+          <Button variant="outline" className="gap-2 h-10" asChild>
             <span>
-              <Upload className="w-4 h-4" /> Import CSV
+              <Upload className="w-4 h-4" /> Import
             </span>
           </Button>
         </label>
       </div>
 
-      {/* Users Table */}
-      <div className="border rounded-lg overflow-hidden">
+      {/* Mobile Filters Panel */}
+      {showFilters && (
+        <div className="sm:hidden space-y-3 mb-4 p-3 bg-neutral-50 rounded-lg">
+          <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
+            <SelectTrigger className="w-full h-10">
+              <SelectValue placeholder="All user types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All user types</SelectItem>
+              {userTypes.map((ut) => (
+                <SelectItem key={ut.id} value={ut.id}>
+                  {ut.typeName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearchQuery("");
+                setUserTypeFilter("all");
+                setShowFilters(false);
+              }}
+              className="gap-2 h-10 flex-1"
+            >
+              <XCircle className="w-4 h-4" /> Clear
+            </Button>
+            <Button
+              variant="outline"
+              onClick={onExportCSV}
+              className="gap-2 h-10 flex-1"
+            >
+              <Download className="w-4 h-4" /> Export
+            </Button>
+          </div>
+          <label className="cursor-pointer block">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <Button variant="outline" className="gap-2 h-10 w-full" asChild>
+              <span>
+                <Upload className="w-4 h-4" /> Import CSV
+              </span>
+            </Button>
+          </label>
+        </div>
+      )}
+
+      {/* Users Table - Desktop */}
+      <div className="hidden md:block border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -478,11 +554,11 @@ export function PrintCenter({
                         className={
                           user.printed
                             ? "bg-red-600 hover:bg-red-700 text-white"
-                            : "bg-green-600 text-white hover:bg-green-700 hover:text-white"
+                            : "bg-green-600 text-white hover:bg-green-700"
                         }
                         onClick={() => onPrintBadge(user.id)}
                       >
-                        <Printer className="w-3.5 h-3.5 mr-1" />{" "}
+                        <Printer className="w-3.5 h-3.5 mr-1" />
                         {user.printed ? "Reprint" : "Print"}
                       </Button>
                       <Button
@@ -501,12 +577,123 @@ export function PrintCenter({
         </div>
       </div>
 
+      {/* Users List - Mobile Cards */}
+      <div className="md:hidden space-y-3">
+        {filteredUsers.map((user) => (
+          <div
+            key={user.id}
+            className="border rounded-lg p-3 bg-white hover:bg-neutral-50 transition"
+          >
+            <div className="flex items-start gap-3">
+              <Checkbox
+                checked={selectedUsers.includes(user.id)}
+                onCheckedChange={() => {
+                  setSelectedUsers((prev) =>
+                    prev.includes(user.id)
+                      ? prev.filter((id) => id !== user.id)
+                      : [...prev, user.id],
+                  );
+                }}
+                className="mt-1"
+              />
+              <div className="flex-1 min-w-0">
+                {/* Top row: Reg No + User Type badge */}
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="font-semibold text-sm text-neutral-900 truncate">
+                    {user.registrationNo}
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] flex-shrink-0 whitespace-nowrap"
+                  >
+                    {user.userTypeName}
+                  </Badge>
+                </div>
+
+                {/* Full Name - always visible */}
+                <div className="text-sm font-medium text-neutral-800 truncate">
+                  {user.fullName}
+                </div>
+
+                {/* Email - always visible */}
+                {user.email && (
+                  <div className="text-xs text-neutral-500 truncate mt-0.5">
+                    {user.email}
+                  </div>
+                )}
+
+                {/* Phone - always visible */}
+                {user.phone && (
+                  <div className="text-xs text-neutral-500 mt-0.5">
+                    {user.phone}
+                  </div>
+                )}
+
+                {/* IMC Number - show if present */}
+                {user.imcNumber && (
+                  <div className="text-xs text-neutral-500 mt-0.5">
+                    IMC: {user.imcNumber}
+                  </div>
+                )}
+
+                {/* Reference - show if present */}
+                {user.reference && (
+                  <div className="text-xs text-neutral-500 mt-0.5 truncate">
+                    Ref: {user.reference}
+                  </div>
+                )}
+
+                {/* Note - show if present */}
+                {user.note && (
+                  <div className="text-xs text-neutral-400 mt-1 italic truncate">
+                    {user.note}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    variant={user.printed ? "default" : "outline"}
+                    className={`flex-1 h-9 text-xs ${
+                      user.printed
+                        ? "bg-red-600 hover:bg-red-700 text-white"
+                        : "bg-green-600 text-white hover:bg-green-700"
+                    }`}
+                    onClick={() => onPrintBadge(user.id)}
+                  >
+                    <Printer className="w-3.5 h-3.5 mr-1" />
+                    {user.printed ? "Reprint" : "Print"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-9 text-xs"
+                    onClick={() => openEditForm(user)}
+                  >
+                    <Edit className="w-3.5 h-3.5 mr-1" /> Edit
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {filteredUsers.length === 0 && (
+          <div className="text-center py-12 text-neutral-400">
+            No users found. Click "Add User" to create one.
+          </div>
+        )}
+      </div>
+
       {/* Add/Edit User Sheet with Permissions */}
       <Sheet open={addUserOpen} onOpenChange={setAddUserOpen}>
-        <SheetContent className="sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{editUser ? "Edit User" : "Add User"}</SheetTitle>
-            <SheetDescription>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto p-0">
+          <SheetHeader className="p-4 sm:p-6 pb-0">
+            <SheetTitle className="text-base sm:text-lg">
+              {editUser ? "Edit User" : "Add User"}
+            </SheetTitle>
+            <SheetDescription className="text-xs sm:text-sm">
               {editUser
                 ? "Update the user details and permissions below."
                 : "Add a new user and set their permissions."}
@@ -517,12 +704,12 @@ export function PrintCenter({
               e.preventDefault();
               handleSaveUser();
             }}
-            className="space-y-4 px-4 py-4"
+            className="space-y-4 px-4 sm:px-6 py-4"
           >
             {/* User Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
-                <Label>Registration No *</Label>
+                <Label className="text-sm">Registration No *</Label>
                 <Input
                   value={formData.registrationNo}
                   onChange={(e) =>
@@ -530,16 +717,17 @@ export function PrintCenter({
                   }
                   required
                   placeholder="SPOT-0001"
+                  className="h-10"
                 />
               </div>
               <div className="space-y-2">
-                <Label>User Type *</Label>
+                <Label className="text-sm">User Type *</Label>
                 <Select
                   value={formData.userTypeId}
                   onValueChange={handleUserTypeChange}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue placeholder="Select user type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -552,7 +740,7 @@ export function PrintCenter({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Full Name *</Label>
+                <Label className="text-sm">Full Name *</Label>
                 <Input
                   value={formData.fullName}
                   onChange={(e) =>
@@ -560,10 +748,11 @@ export function PrintCenter({
                   }
                   required
                   placeholder="John Doe"
+                  className="h-10"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label className="text-sm">Email</Label>
                 <Input
                   type="email"
                   value={formData.email}
@@ -571,40 +760,44 @@ export function PrintCenter({
                     setFormData({ ...formData, email: e.target.value })
                   }
                   placeholder="user@example.com"
+                  className="h-10"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Phone</Label>
+                <Label className="text-sm">Phone</Label>
                 <Input
                   value={formData.phone}
                   onChange={(e) =>
                     setFormData({ ...formData, phone: e.target.value })
                   }
                   placeholder="+91 9876543210"
+                  className="h-10"
                 />
               </div>
               <div className="space-y-2">
-                <Label>IMC Number</Label>
+                <Label className="text-sm">IMC Number</Label>
                 <Input
                   value={formData.imcNumber}
                   onChange={(e) =>
                     setFormData({ ...formData, imcNumber: e.target.value })
                   }
                   placeholder="IMC123"
+                  className="h-10"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Reference</Label>
+                <Label className="text-sm">Reference</Label>
                 <Input
                   value={formData.reference}
                   onChange={(e) =>
                     setFormData({ ...formData, reference: e.target.value })
                   }
                   placeholder="Reference"
+                  className="h-10"
                 />
               </div>
-              <div className="space-y-2 col-span-2">
-                <Label>Note</Label>
+              <div className="space-y-2 sm:col-span-2">
+                <Label className="text-sm">Note</Label>
                 <Textarea
                   value={formData.note}
                   onChange={(e) =>
@@ -616,85 +809,110 @@ export function PrintCenter({
               </div>
             </div>
 
-            {/* Permissions Section - Show when user type is selected */}
+            {/* Permissions Section */}
             {selectedUserTypeId && categories.length > 0 && (
               <div className="border-t pt-4 mt-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-neutral-900">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <h3 className="font-semibold text-sm text-neutral-900">
                     User Type × Category Permissions
                   </h3>
-                  <span className="text-xs text-neutral-500">
+                  <span className="text-[10px] sm:text-xs text-neutral-500">
                     ✔ = allow, empty = block
                   </span>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {Object.entries(groupedCategories).map(
                     ([groupId, groupCats]) => (
-                      <div key={groupId} className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-medium text-neutral-800">
-                            {getGroupName(groupId)}
-                          </h4>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-green-600 text-xs"
-                              onClick={() =>
-                                handleBulkAllow(groupCats.map((c) => c.id))
-                              }
-                            >
-                              Allow all
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-red-600 text-xs"
-                              onClick={() =>
-                                handleBulkBlock(groupCats.map((c) => c.id))
-                              }
-                            >
-                              Block all
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          {groupCats.map((cat) => {
-                            const allowed = isPermissionAllowed(
-                              selectedUserTypeId,
-                              cat.id,
-                            );
-                            return (
-                              <div
-                                key={cat.id}
-                                className="flex items-center justify-between py-1 px-2 hover:bg-neutral-50 rounded"
-                              >
-                                <span className="text-sm text-neutral-700">
-                                  {cat.name}
-                                </span>
+                      <div
+                        key={groupId}
+                        className="border rounded-lg overflow-hidden"
+                      >
+                        <Accordion
+                          type="single"
+                          collapsible
+                          defaultValue={groupId}
+                        >
+                          <AccordionItem value={groupId} className="border-0">
+                            <div className="flex items-center justify-between p-3 bg-neutral-50">
+                              <AccordionTrigger className="hover:no-underline py-0 flex-1">
+                                <h4 className="font-medium text-sm text-neutral-800">
+                                  {getGroupName(groupId)}
+                                </h4>
+                              </AccordionTrigger>
+                              <div className="flex gap-1.5 flex-shrink-0 ml-2">
                                 <Button
                                   size="sm"
-                                  variant={allowed ? "default" : "outline"}
-                                  className={`w-20 ${allowed ? "bg-green-600 hover:bg-green-700" : ""}`}
-                                  onClick={() => handleTogglePermission(cat.id)}
+                                  variant="outline"
+                                  className="text-green-600 text-[10px] h-7 px-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleBulkAllow(groupCats.map((c) => c.id));
+                                  }}
                                 >
-                                  {allowed ? (
-                                    <>
-                                      <CheckCircle className="w-3.5 h-3.5 mr-1" />{" "}
-                                      Allow
-                                    </>
-                                  ) : (
-                                    <>
-                                      <XCircleIcon className="w-3.5 h-3.5 mr-1" />{" "}
-                                      Block
-                                    </>
-                                  )}
+                                  Allow all
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-red-600 text-[10px] h-7 px-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleBulkBlock(groupCats.map((c) => c.id));
+                                  }}
+                                >
+                                  Block all
                                 </Button>
                               </div>
-                            );
-                          })}
-                        </div>
+                            </div>
+                            <AccordionContent className="pt-2 pb-0">
+                              <div className="space-y-1 p-2">
+                                {groupCats.map((cat) => {
+                                  const allowed = isPermissionAllowed(
+                                    selectedUserTypeId,
+                                    cat.id,
+                                  );
+                                  return (
+                                    <div
+                                      key={cat.id}
+                                      className="flex items-center justify-between py-2 px-2 hover:bg-neutral-50 rounded gap-2"
+                                    >
+                                      <span className="text-xs sm:text-sm text-neutral-700 flex-1 min-w-0 truncate">
+                                        {cat.name}
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant={
+                                          allowed ? "default" : "outline"
+                                        }
+                                        className={`w-[72px] sm:w-20 h-7 text-[10px] sm:text-xs flex-shrink-0 ${
+                                          allowed
+                                            ? "bg-green-600 hover:bg-green-700"
+                                            : ""
+                                        }`}
+                                        onClick={() =>
+                                          handleTogglePermission(cat.id)
+                                        }
+                                      >
+                                        {allowed ? (
+                                          <>
+                                            <CheckCircle className="w-3 h-3 mr-0.5 sm:mr-1" />
+                                            Allow
+                                          </>
+                                        ) : (
+                                          <>
+                                            <XCircleIcon className="w-3 h-3 mr-0.5 sm:mr-1" />
+                                            Block
+                                          </>
+                                        )}
+                                      </Button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
                       </div>
                     ),
                   )}
@@ -706,24 +924,25 @@ export function PrintCenter({
             {!selectedUserTypeId && categories.length > 0 && (
               <div className="border-t pt-4 mt-4">
                 <div className="text-center py-4 text-neutral-500">
-                  <p className="text-sm">
+                  <p className="text-xs sm:text-sm">
                     Select a user type to manage permissions
                   </p>
                 </div>
               </div>
             )}
 
-            <SheetFooter>
+            <SheetFooter className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setAddUserOpen(false)}
+                className="w-full sm:w-auto h-10 order-2 sm:order-1"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="bg-orange-600 hover:bg-orange-700 text-white"
+                className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto h-10 order-1 sm:order-2"
               >
                 {editUser ? "Save" : "Create"}
               </Button>

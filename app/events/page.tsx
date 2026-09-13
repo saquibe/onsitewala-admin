@@ -31,6 +31,13 @@ import { VenueCard } from "@/components/events/VenueCard";
 
 type Tab = "events" | "venue" | "organizer";
 
+// Navigation items
+const NAV_ITEMS = [
+  { id: "events" as Tab, icon: Calendar, label: "Events" },
+  { id: "venue" as Tab, icon: MapPin, label: "Venues" },
+  { id: "organizer" as Tab, icon: Users, label: "Organizers" },
+];
+
 // Helper functions
 const getVenueObject = (venue: Venue | string | undefined): Venue | null => {
   if (!venue) return null;
@@ -71,19 +78,12 @@ export default function EventsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      console.log("Loading data...");
-
       const [eventsRes, venuesRes, organizersRes] = await Promise.all([
         eventsApi.getEvents({ limit: 100 }),
         venuesApi.getVenues({ limit: 100 }),
         organizersApi.getOrganizers({ limit: 100 }),
       ]);
 
-      console.log("Events response:", eventsRes);
-      console.log("Venues response:", venuesRes);
-      console.log("Organizers response:", organizersRes);
-
-      // Handle different response structures
       const eventsData = eventsRes.data || eventsRes || [];
       const venuesData = venuesRes.data || venuesRes || [];
       const organizersData = organizersRes.data || organizersRes || [];
@@ -143,6 +143,24 @@ export default function EventsPage() {
     }
   };
 
+  const getPageTitle = () => {
+    if (tab === "venue") return "Venues";
+    if (tab === "organizer") return "Organizers";
+    return "Events";
+  };
+
+  const getAddButtonText = () => {
+    if (tab === "venue") return "Add Venue";
+    if (tab === "organizer") return "Add Organizer";
+    return "Add Event";
+  };
+
+  const handleAddClick = () => {
+    if (tab === "events") setEventDialog(true);
+    else if (tab === "venue") setVenueDialog(true);
+    else setOrganizerDialog(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col bg-neutral-50">
@@ -159,93 +177,65 @@ export default function EventsPage() {
       <Header />
 
       <div className="flex-1 flex">
-        {/* Mini sidebar */}
-        <aside className="w-16 lg:w-20 bg-neutral-900 text-white flex flex-col items-center py-6 gap-2">
+        {/* Desktop Sidebar - Hidden on mobile */}
+        <aside className="hidden md:flex w-16 lg:w-20 bg-neutral-900 text-white flex-col items-center py-6 gap-2 flex-shrink-0">
           <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center">
             <LayoutGrid className="w-5 h-5" />
           </div>
           <nav className="mt-4 flex flex-col gap-3">
-            <button
-              onClick={() => setTab("events")}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
-                tab === "events" ? "bg-white/15" : "hover:bg-white/10"
-              }`}
-              title="Events"
-            >
-              <Calendar className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setTab("venue")}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
-                tab === "venue" ? "bg-white/15" : "hover:bg-white/10"
-              }`}
-              title="Venues"
-            >
-              <MapPin className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setTab("organizer")}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
-                tab === "organizer" ? "bg-white/15" : "hover:bg-white/10"
-              }`}
-              title="Organizers"
-            >
-              <Users className="w-5 h-5" />
-            </button>
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setTab(item.id)}
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
+                  tab === item.id ? "bg-white/15" : "hover:bg-white/10"
+                }`}
+                title={item.label}
+              >
+                <item.icon className="w-5 h-5" />
+              </button>
+            ))}
           </nav>
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto">
-          {/* Tabs */}
-          <div className="bg-white border-b border-neutral-200 px-6 pt-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-xl font-bold text-neutral-900 capitalize">
-                {tab === "venue"
-                  ? "Venues"
-                  : tab === "organizer"
-                    ? "Organizers"
-                    : "Events"}
+        <main className="flex-1 overflow-auto pb-20 md:pb-0">
+          {/* Header with Tabs */}
+          <div className="bg-white border-b border-neutral-200 px-4 sm:px-6 pt-4">
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-lg sm:text-xl font-bold text-neutral-900 capitalize">
+                {getPageTitle()}
               </h1>
               <Button
-                onClick={() => {
-                  if (tab === "events") setEventDialog(true);
-                  else if (tab === "venue") setVenueDialog(true);
-                  else setOrganizerDialog(true);
-                }}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
+                onClick={handleAddClick}
+                className="bg-orange-600 hover:bg-orange-700 text-white h-9 sm:h-10 px-3 sm:px-4"
+                size="sm"
               >
-                <Plus className="w-4 h-4 mr-1" />
-                Add{" "}
-                {tab === "venue"
-                  ? "Venue"
-                  : tab === "organizer"
-                    ? "Organizer"
-                    : "Event"}
+                <Plus className="w-4 h-4 sm:mr-1" />
+                <span className="hidden sm:inline">{getAddButtonText()}</span>
+                <span className="sm:hidden">Add</span>
               </Button>
             </div>
-            <div className="flex gap-6 mt-3">
-              {(["events", "venue", "organizer"] as Tab[]).map((t) => (
+
+            {/* Desktop Tabs */}
+            <div className="hidden sm:flex gap-6 mt-3">
+              {NAV_ITEMS.map((item) => (
                 <button
-                  key={t}
-                  onClick={() => setTab(t)}
+                  key={item.id}
+                  onClick={() => setTab(item.id)}
                   className={`pb-3 text-sm capitalize transition border-b-2 ${
-                    tab === t
+                    tab === item.id
                       ? "border-orange-600 text-orange-600 font-semibold"
                       : "border-transparent text-neutral-500 hover:text-neutral-800"
                   }`}
                 >
-                  {t === "venue"
-                    ? "Venues"
-                    : t === "organizer"
-                      ? "Organizers"
-                      : "Events"}
+                  {item.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {tab === "events" && (
               <>
                 <div className="mb-4 relative max-w-md">
@@ -253,11 +243,11 @@ export default function EventsPage() {
                   <Input
                     value={eventSearch}
                     onChange={(e) => setEventSearch(e.target.value)}
-                    placeholder="Search events by name, venue, or organizer..."
-                    className="pl-10 bg-white"
+                    placeholder="Search events..."
+                    className="pl-10 bg-white h-10"
                   />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
                   {filteredEvents.map((ev) => {
                     const venue = getVenueObject(ev.venueId);
                     const organizer = getOrganizerObject(ev.organizerId);
@@ -285,7 +275,7 @@ export default function EventsPage() {
             )}
 
             {tab === "venue" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
                 {venues.map((v) => (
                   <VenueCard key={v._id} venue={v} onEdit={setEditVenue} />
                 ))}
@@ -301,7 +291,7 @@ export default function EventsPage() {
             )}
 
             {tab === "organizer" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
                 {organizers.map((o) => (
                   <OrganizerCard
                     key={o._id}
@@ -321,6 +311,39 @@ export default function EventsPage() {
             )}
           </div>
         </main>
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-neutral-900 text-white safe-area-bottom">
+        <nav className="flex items-center justify-around h-16">
+          {NAV_ITEMS.map((item) => {
+            const isActive = tab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setTab(item.id)}
+                className={`flex flex-col items-center justify-center flex-1 h-full transition relative ${
+                  isActive
+                    ? "text-orange-500"
+                    : "text-white/60 active:text-white/80"
+                }`}
+                aria-label={item.label}
+              >
+                <item.icon
+                  className={`w-5 h-5 ${isActive ? "stroke-[2.5]" : ""}`}
+                />
+                <span
+                  className={`text-[10px] mt-0.5 ${isActive ? "font-semibold" : ""}`}
+                >
+                  {item.label}
+                </span>
+                {isActive && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-orange-500 rounded-full" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       {/* Dialogs */}

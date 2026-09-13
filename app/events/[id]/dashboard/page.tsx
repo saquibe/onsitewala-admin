@@ -13,6 +13,7 @@ import {
   Database,
   Settings,
   Loader2,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
@@ -24,6 +25,7 @@ import {
   PrintCenter,
   CategoryManagement,
   DataManagement,
+  SpotRegistration,
 } from "@/components/events";
 import type {
   UserType,
@@ -42,10 +44,37 @@ type Section =
   | "dashboard"
   | "scan"
   | "print"
+  | "spot-registration"
   | "category"
   | "privileges"
   | "data"
   | "settings";
+
+// Navigation items for both sidebar and mobile nav
+const NAV_ITEMS = [
+  { id: "dashboard" as Section, icon: LayoutDashboard, label: "Dashboard" },
+  { id: "print" as Section, icon: Printer, label: "Print" },
+  { id: "scan" as Section, icon: ScanLine, label: "Scan" },
+  { id: "category" as Section, icon: FolderTree, label: "Category" },
+  { id: "privileges" as Section, icon: KeyRound, label: "Privileges" },
+  { id: "data" as Section, icon: Database, label: "Data" },
+  {
+    id: "spot-registration" as Section,
+    icon: UserPlus,
+    label: "Spot Registration",
+  },
+  { id: "settings" as Section, icon: Settings, label: "Settings" },
+];
+
+// Mobile nav items (max 5 for bottom bar)
+const MOBILE_NAV_ITEMS = [
+  { id: "dashboard" as Section, icon: LayoutDashboard, label: "Home" },
+  { id: "scan" as Section, icon: ScanLine, label: "Scan" },
+  { id: "spot-registration" as Section, icon: UserPlus, label: "Register" },
+  { id: "print" as Section, icon: Printer, label: "Print" },
+  { id: "category" as Section, icon: FolderTree, label: "Category" },
+  { id: "data" as Section, icon: Database, label: "Data" },
+];
 
 // Mock Data
 const mockUserTypes: UserType[] = [
@@ -344,10 +373,7 @@ export default function EventDashboardPage({
   // User Type Handlers
   // ============================================
   const handleAddUserType = (name: string) => {
-    const newType: UserType = {
-      id: `type_${Date.now()}`,
-      typeName: name,
-    };
+    const newType: UserType = { id: `type_${Date.now()}`, typeName: name };
     setUserTypes([...userTypes, newType]);
     toast({ title: "Success", description: "User type added successfully" });
   };
@@ -368,10 +394,7 @@ export default function EventDashboardPage({
   // Category Group Handlers
   // ============================================
   const handleAddCategoryGroup = (group: Omit<CategoryGroup, "id">) => {
-    const newGroup: CategoryGroup = {
-      ...group,
-      id: `group_${Date.now()}`,
-    };
+    const newGroup: CategoryGroup = { ...group, id: `group_${Date.now()}` };
     setCategoryGroups([...categoryGroups, newGroup]);
     toast({
       title: "Success",
@@ -404,15 +427,8 @@ export default function EventDashboardPage({
   // Category Handlers
   // ============================================
   const handleAddCategory = (category: Omit<Category, "id">) => {
-    const newCategory: Category = {
-      ...category,
-      id: `cat_${Date.now()}`,
-    };
+    const newCategory: Category = { ...category, id: `cat_${Date.now()}` };
     setCategories([...categories, newCategory]);
-
-    // Also add to scan categories if needed
-    // You can add logic here to sync with scan categories
-
     toast({ title: "Success", description: "Category added successfully" });
   };
 
@@ -478,7 +494,6 @@ export default function EventDashboardPage({
   // Data Management Handlers
   // ============================================
   const handleImportCSV = async (file: File) => {
-    // API call to import CSV
     toast({ title: "Importing", description: `Importing ${file.name}...` });
   };
 
@@ -522,12 +537,12 @@ export default function EventDashboardPage({
     return (
       <div className="min-h-screen flex flex-col bg-neutral-50">
         <Header />
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-neutral-900">
+            <h2 className="text-xl sm:text-2xl font-bold text-neutral-900">
               Event Not Found
             </h2>
-            <p className="text-neutral-500 mt-2">
+            <p className="text-sm sm:text-base text-neutral-500 mt-2">
               The event you're looking for doesn't exist.
             </p>
             <Button
@@ -550,10 +565,13 @@ export default function EventDashboardPage({
         eventStatus={event.dynamicStatus || "Draft"}
         startDate={event.startDate}
         endDate={event.endDate}
+        // showBackButton={true}
+        // backUrl="/events"
       />
 
       <div className="flex-1 flex">
-        <aside className="w-60 bg-white border-r border-neutral-200 flex flex-col">
+        {/* Desktop Sidebar - Hidden on mobile */}
+        <aside className="hidden md:flex w-56 lg:w-60 bg-white border-r border-neutral-200 flex-col flex-shrink-0">
           <div className="p-4 border-b border-neutral-100">
             <div className="flex items-center gap-2 text-xs text-neutral-500">
               <ShieldCheck className="w-4 h-4 text-orange-600" />
@@ -561,56 +579,28 @@ export default function EventDashboardPage({
             </div>
           </div>
           <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-            <SidebarItem
-              icon={LayoutDashboard}
-              label="Dashboard"
-              active={section === "dashboard"}
-              onClick={() => setSection("dashboard")}
-            />
-            <SidebarItem
-              icon={ScanLine}
-              label="Scan"
-              active={section === "scan"}
-              onClick={() => setSection("scan")}
-            />
-            <SidebarItem
-              icon={Printer}
-              label="Print Center"
-              active={section === "print"}
-              onClick={() => setSection("print")}
-            />
-            <SidebarItem
-              icon={FolderTree}
-              label="Category"
-              active={section === "category"}
-              onClick={() => setSection("category")}
-            />
-            <SidebarItem
-              icon={KeyRound}
-              label="Privileges"
-              active={section === "privileges"}
-              onClick={() => setSection("privileges")}
-            />
-            <SidebarItem
-              icon={Database}
-              label="Data"
-              active={section === "data"}
-              onClick={() => setSection("data")}
-            />
-            <SidebarItem
-              icon={Settings}
-              label="Settings"
-              active={section === "settings"}
-              onClick={() => setSection("settings")}
-            />
+            {NAV_ITEMS.map((item) => (
+              <SidebarItem
+                key={item.id}
+                icon={item.icon}
+                label={item.label}
+                active={section === item.id}
+                onClick={() => setSection(item.id)}
+              />
+            ))}
           </nav>
         </aside>
 
-        <main className="flex-1 overflow-auto">
-          {section === "dashboard" && <DashboardSection event={event} />}
+        {/* Main Content */}
+        <main className="flex-1 overflow-auto pb-20 md:pb-0">
+          {section === "dashboard" && (
+            <div className="p-4 sm:p-6">
+              <DashboardSection event={event} />
+            </div>
+          )}
 
           {section === "scan" && (
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <ScanCenter
                 categories={mockScanCategories}
                 users={scanUsers}
@@ -621,7 +611,7 @@ export default function EventDashboardPage({
           )}
 
           {section === "print" && (
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <PrintCenter
                 users={printUsers}
                 userTypes={userTypes}
@@ -642,7 +632,7 @@ export default function EventDashboardPage({
           )}
 
           {section === "category" && (
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <CategoryManagement
                 userTypes={userTypes}
                 categoryGroups={categoryGroups}
@@ -661,7 +651,7 @@ export default function EventDashboardPage({
           )}
 
           {section === "privileges" && (
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <Privileges
                 userTypes={userTypes}
                 categories={categories}
@@ -674,7 +664,7 @@ export default function EventDashboardPage({
           )}
 
           {section === "data" && (
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <DataManagement
                 users={printUsers}
                 userTypes={userTypes}
@@ -713,8 +703,55 @@ export default function EventDashboardPage({
             </div>
           )}
 
+          {section === "spot-registration" && (
+            <SpotRegistration
+              users={printUsers}
+              userTypes={userTypes}
+              categories={categories}
+              permissions={permissions}
+              onAddUser={handleAddUser}
+              onTogglePermission={handleTogglePermission}
+              onBulkAllowAll={handleBulkAllowAll}
+              onBulkBlockAll={handleBulkBlockAll}
+              onPrintBadge={handlePrintBadge}
+            />
+          )}
+
           {section === "settings" && <SettingsSection event={event} />}
         </main>
+      </div>
+
+      {/* Mobile Bottom Navigation - Visible only on mobile */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 safe-area-bottom">
+        <nav className="flex items-center justify-around h-16">
+          {MOBILE_NAV_ITEMS.map((item) => {
+            const isActive = section === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setSection(item.id)}
+                className={`flex flex-col items-center justify-center flex-1 h-full transition relative ${
+                  isActive
+                    ? "text-orange-600"
+                    : "text-neutral-500 active:text-orange-500"
+                }`}
+                aria-label={item.label}
+              >
+                <item.icon
+                  className={`w-5 h-5 ${isActive ? "stroke-[2.5]" : ""}`}
+                />
+                <span
+                  className={`text-[10px] mt-0.5 ${isActive ? "font-semibold" : ""}`}
+                >
+                  {item.label}
+                </span>
+                {isActive && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-orange-600 rounded-full" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
       </div>
     </div>
   );
@@ -734,12 +771,16 @@ function SidebarItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${active ? "bg-orange-50 text-orange-700 font-semibold" : "text-neutral-600 hover:bg-neutral-50"}`}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
+        active
+          ? "bg-orange-50 text-orange-700 font-semibold"
+          : "text-neutral-600 hover:bg-neutral-50"
+      }`}
     >
       <Icon
-        className={`w-4 h-4 ${active ? "text-orange-600" : "text-neutral-400"}`}
+        className={`w-4 h-4 flex-shrink-0 ${active ? "text-orange-600" : "text-neutral-400"}`}
       />
-      <span className="flex-1 text-left">{label}</span>
+      <span className="flex-1 text-left truncate">{label}</span>
     </button>
   );
 }

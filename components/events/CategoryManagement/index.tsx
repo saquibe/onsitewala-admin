@@ -3,15 +3,7 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tag, FolderTree, Layers, Plus, Settings } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Tag, FolderTree, Layers } from "lucide-react";
 import type { UserType, CategoryGroup, Category } from "../types";
 import { UserTypesTab } from "./UserTypesTab";
 import { CategoryGroupsTab } from "./CategoryGroupsTab";
@@ -53,21 +45,36 @@ export function CategoryManagement({
   );
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-5">
+    <div className="bg-white rounded-xl border border-neutral-200 p-3 sm:p-5">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="types" className="flex items-center gap-2">
-            <Tag className="w-4 h-4" /> User Types
-          </TabsTrigger>
-          <TabsTrigger value="groups" className="flex items-center gap-2">
-            <FolderTree className="w-4 h-4" /> Category Groups
-          </TabsTrigger>
-          <TabsTrigger value="categories" className="flex items-center gap-2">
-            <Layers className="w-4 h-4" /> Categories
-          </TabsTrigger>
-        </TabsList>
+        {/* Mobile: Full-width tabs that scroll horizontally if needed */}
+        <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 mb-4">
+          <TabsList className="w-full sm:w-auto inline-flex min-w-full sm:min-w-0">
+            <TabsTrigger
+              value="types"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2"
+            >
+              <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="whitespace-nowrap">User Types</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="groups"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2"
+            >
+              <FolderTree className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="whitespace-nowrap">Groups</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="categories"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2"
+            >
+              <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="whitespace-nowrap">Categories</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="types">
+        <TabsContent value="types" className="mt-0">
           <UserTypesTab
             userTypes={userTypes}
             onAdd={onAddUserType}
@@ -77,7 +84,7 @@ export function CategoryManagement({
           />
         </TabsContent>
 
-        <TabsContent value="groups">
+        <TabsContent value="groups" className="mt-0">
           <CategoryGroupsTab
             categoryGroups={categoryGroups}
             onAdd={onAddCategoryGroup}
@@ -87,7 +94,7 @@ export function CategoryManagement({
           />
         </TabsContent>
 
-        <TabsContent value="categories">
+        <TabsContent value="categories" className="mt-0">
           <CategoriesTab
             categories={categories}
             categoryGroups={categoryGroups}

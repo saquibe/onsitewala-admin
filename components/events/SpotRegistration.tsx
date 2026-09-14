@@ -55,6 +55,7 @@ import type {
   PrintUser,
   UserType,
   Category,
+  CategoryGroup,
   CategoryPermission,
 } from "./types";
 
@@ -62,6 +63,7 @@ interface SpotRegistrationProps {
   users: PrintUser[];
   userTypes: UserType[];
   categories: Category[];
+  categoryGroups: CategoryGroup[];
   permissions: CategoryPermission[];
   onAddUser: (
     user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
@@ -82,6 +84,7 @@ export function SpotRegistration({
   users,
   userTypes,
   categories,
+  categoryGroups,
   permissions,
   onAddUser,
   onTogglePermission,
@@ -109,7 +112,6 @@ export function SpotRegistration({
     reference: "",
   });
 
-  // Auto-generate registration number for spot registration
   useEffect(() => {
     generateRegistrationNo();
   }, [users]);
@@ -124,10 +126,9 @@ export function SpotRegistration({
     setFormData((prev) => ({ ...prev, registrationNo: `SPOT-${nextNum}` }));
   };
 
-  // Group categories by group
   const groupedCategories = categories.reduce(
     (acc, cat) => {
-      const group = cat.groupId || "Uncategorized";
+      const group = cat.groupCategoryId || "Uncategorized";
       if (!acc[group]) acc[group] = [];
       acc[group].push(cat);
       return acc;
@@ -135,16 +136,10 @@ export function SpotRegistration({
     {} as Record<string, Category[]>,
   );
 
-  const getGroupName = (groupId: string) => {
-    const groupNames: Record<string, string> = {
-      "1": "Certificate Scan",
-      "2": "Food Scan",
-      "3": "Gift",
-    };
-    return groupNames[groupId] || groupId;
-  };
+  const getGroupName = (groupId: string) =>
+    categoryGroups.find((g) => g._id === groupId)?.groupCategoryName ||
+    "Uncategorized";
 
-  // Search existing users
   const searchResults = searchQuery
     ? users.filter((u) => {
         const search = searchQuery.toLowerCase();
@@ -157,12 +152,9 @@ export function SpotRegistration({
       })
     : [];
 
-  // Handle user type change
   const handleUserTypeChange = (value: string) => {
     setSelectedUserTypeId(value);
     setFormData({ ...formData, userTypeId: value });
-
-    // Load existing permissions for this user type
     const userPermissions = permissions.filter((p) => p.userTypeId === value);
     setFormPermissions(userPermissions);
   };
@@ -176,7 +168,6 @@ export function SpotRegistration({
 
   const handleTogglePermission = (categoryId: string) => {
     if (!selectedUserTypeId) return;
-
     const current = isPermissionAllowed(selectedUserTypeId, categoryId);
     const newPermissions = current
       ? formPermissions.filter(
@@ -189,14 +180,12 @@ export function SpotRegistration({
           ...formPermissions,
           { userTypeId: selectedUserTypeId, categoryId, allowed: true },
         ];
-
     setFormPermissions(newPermissions);
     onTogglePermission(selectedUserTypeId, categoryId, !current);
   };
 
   const handleBulkAllow = (categoryIds: string[]) => {
     if (!selectedUserTypeId) return;
-
     const newPermissions = [...formPermissions];
     categoryIds.forEach((catId) => {
       const existing = newPermissions.find(
@@ -218,7 +207,6 @@ export function SpotRegistration({
 
   const handleBulkBlock = (categoryIds: string[]) => {
     if (!selectedUserTypeId) return;
-
     const newPermissions = formPermissions.filter(
       (p) =>
         !(
@@ -244,7 +232,6 @@ export function SpotRegistration({
       return;
     }
 
-    // Check for duplicate registration number
     const existing = users.find(
       (u) =>
         u.registrationNo.toLowerCase() ===
@@ -259,16 +246,15 @@ export function SpotRegistration({
       return;
     }
 
-    // Add user
     onAddUser(formData, formPermissions);
 
-    // Create a temporary user object for recent list
     const newUser: PrintUser = {
       ...formData,
       id: `temp_${Date.now()}`,
       printed: false,
       userTypeName:
-        userTypes.find((ut) => ut.id === formData.userTypeId)?.typeName || "",
+        userTypes.find((ut) => ut._id === formData.userTypeId)?.userTypeName ||
+        "",
       permissions: formPermissions,
     };
 
@@ -279,7 +265,6 @@ export function SpotRegistration({
       description: `${formData.fullName} has been registered. Ready to print badge.`,
     });
 
-    // Reset form but keep user type for quick repeat registration
     const currentUserType = formData.userTypeId;
     setFormData({
       registrationNo: "",
@@ -292,8 +277,6 @@ export function SpotRegistration({
       reference: "",
     });
     setSelectedUserTypeId(currentUserType);
-
-    // Auto-generate next registration number
     setTimeout(() => generateRegistrationNo(), 100);
   };
 
@@ -332,7 +315,8 @@ export function SpotRegistration({
       id: `temp_${Date.now()}`,
       printed: false,
       userTypeName:
-        userTypes.find((ut) => ut.id === formData.userTypeId)?.typeName || "",
+        userTypes.find((ut) => ut._id === formData.userTypeId)?.userTypeName ||
+        "",
       permissions: formPermissions,
     };
 
@@ -390,7 +374,6 @@ export function SpotRegistration({
             />
           </div>
 
-          {/* Search Results */}
           {searchQuery && (
             <div className="mt-3 border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
               {searchResults.length > 0 ? (
@@ -456,7 +439,6 @@ export function SpotRegistration({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Registration Number & User Type */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label className="text-sm flex items-center gap-2">
@@ -486,8 +468,8 @@ export function SpotRegistration({
                 </SelectTrigger>
                 <SelectContent>
                   {userTypes.map((ut) => (
-                    <SelectItem key={ut.id} value={ut.id}>
-                      {ut.typeName}
+                    <SelectItem key={ut._id} value={ut._id}>
+                      {ut.userTypeName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -495,7 +477,6 @@ export function SpotRegistration({
             </div>
           </div>
 
-          {/* Personal Information */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label className="text-sm flex items-center gap-2">
@@ -581,7 +562,6 @@ export function SpotRegistration({
             </div>
           </div>
 
-          {/* Permissions */}
           {selectedUserTypeId && categories.length > 0 && (
             <div className="border-t pt-4 mt-2">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
@@ -619,7 +599,7 @@ export function SpotRegistration({
                                 className="text-green-600 text-[10px] h-7 px-2"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleBulkAllow(groupCats.map((c) => c.id));
+                                  handleBulkAllow(groupCats.map((c) => c._id));
                                 }}
                               >
                                 Allow all
@@ -630,7 +610,7 @@ export function SpotRegistration({
                                 className="text-red-600 text-[10px] h-7 px-2"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleBulkBlock(groupCats.map((c) => c.id));
+                                  handleBulkBlock(groupCats.map((c) => c._id));
                                 }}
                               >
                                 Block all
@@ -642,15 +622,15 @@ export function SpotRegistration({
                               {groupCats.map((cat) => {
                                 const allowed = isPermissionAllowed(
                                   selectedUserTypeId,
-                                  cat.id,
+                                  cat._id,
                                 );
                                 return (
                                   <div
-                                    key={cat.id}
+                                    key={cat._id}
                                     className="flex items-center justify-between py-1.5 px-2 hover:bg-neutral-50 rounded gap-2"
                                   >
                                     <span className="text-xs sm:text-sm text-neutral-700 flex-1 min-w-0 truncate">
-                                      {cat.name}
+                                      {cat.categoryName}
                                     </span>
                                     <Button
                                       size="sm"
@@ -661,7 +641,7 @@ export function SpotRegistration({
                                           : ""
                                       }`}
                                       onClick={() =>
-                                        handleTogglePermission(cat.id)
+                                        handleTogglePermission(cat._id)
                                       }
                                     >
                                       {allowed ? (
@@ -690,7 +670,6 @@ export function SpotRegistration({
             </div>
           )}
 
-          {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
             <Button
               type="button"
@@ -713,7 +692,6 @@ export function SpotRegistration({
         </CardContent>
       </Card>
 
-      {/* Recently Registered */}
       {recentUsers.length > 0 && (
         <Card>
           <CardHeader className="pb-3">

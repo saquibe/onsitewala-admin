@@ -61,6 +61,7 @@ interface PrintCenterProps {
   users: PrintUser[];
   userTypes: UserType[];
   categories: Category[];
+  categoryGroups: { _id: string; groupCategoryName: string }[];
   permissions: CategoryPermission[];
   onAddUser: (
     user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
@@ -90,6 +91,7 @@ export function PrintCenter({
   users,
   userTypes,
   categories,
+  categoryGroups,
   permissions,
   onAddUser,
   onEditUser,
@@ -121,16 +123,15 @@ export function PrintCenter({
     reference: "",
   });
 
-  // Permissions state for the form
   const [formPermissions, setFormPermissions] = useState<CategoryPermission[]>(
     [],
   );
   const [selectedUserTypeId, setSelectedUserTypeId] = useState("");
 
-  // Group categories by group name
+  // Group categories by groupCategoryId
   const groupedCategories = categories.reduce(
     (acc, cat) => {
-      const group = cat.groupId || "Uncategorized";
+      const group = cat.groupCategoryId || "Uncategorized";
       if (!acc[group]) acc[group] = [];
       acc[group].push(cat);
       return acc;
@@ -138,14 +139,9 @@ export function PrintCenter({
     {} as Record<string, Category[]>,
   );
 
-  const getGroupName = (groupId: string) => {
-    const groupNames: Record<string, string> = {
-      "1": "Certificate Scan",
-      "2": "Food Scan",
-      "3": "Gift",
-    };
-    return groupNames[groupId] || groupId;
-  };
+  const getGroupName = (groupId: string) =>
+    categoryGroups.find((g) => g._id === groupId)?.groupCategoryName ||
+    "Uncategorized";
 
   const filteredUsers = users.filter((u) => {
     const search = searchQuery.toLowerCase();
@@ -157,7 +153,6 @@ export function PrintCenter({
     );
   });
 
-  // Reset form permissions when user type changes
   useEffect(() => {
     if (selectedUserTypeId) {
       const userPermissions = permissions.filter(
@@ -183,7 +178,6 @@ export function PrintCenter({
 
   const handleTogglePermission = (categoryId: string) => {
     if (!selectedUserTypeId) return;
-
     const current = isPermissionAllowed(selectedUserTypeId, categoryId);
     const newPermissions = current
       ? formPermissions.filter(
@@ -196,14 +190,12 @@ export function PrintCenter({
           ...formPermissions,
           { userTypeId: selectedUserTypeId, categoryId, allowed: true },
         ];
-
     setFormPermissions(newPermissions);
     onTogglePermission(selectedUserTypeId, categoryId, !current);
   };
 
   const handleBulkAllow = (categoryIds: string[]) => {
     if (!selectedUserTypeId) return;
-
     const newPermissions = [...formPermissions];
     categoryIds.forEach((catId) => {
       const existing = newPermissions.find(
@@ -225,7 +217,6 @@ export function PrintCenter({
 
   const handleBulkBlock = (categoryIds: string[]) => {
     if (!selectedUserTypeId) return;
-
     const newPermissions = formPermissions.filter(
       (p) =>
         !(
@@ -250,7 +241,6 @@ export function PrintCenter({
       });
       return;
     }
-
     if (editUser) {
       onEditUser(editUser.id, formData, formPermissions);
     } else {
@@ -309,7 +299,7 @@ export function PrintCenter({
 
   const openAddForm = () => {
     resetForm();
-    const initialUserType = userTypes.length > 0 ? userTypes[0].id : "";
+    const initialUserType = userTypes.length > 0 ? userTypes[0]._id : "";
     if (initialUserType) {
       setSelectedUserTypeId(initialUserType);
       setFormData({ ...formData, userTypeId: initialUserType });
@@ -354,7 +344,7 @@ export function PrintCenter({
         </div>
       </div>
 
-      {/* Mobile Search & Filter Toggle */}
+      {/* Mobile Search & Filter */}
       <div className="sm:hidden flex gap-2 mb-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
@@ -393,8 +383,8 @@ export function PrintCenter({
           <SelectContent>
             <SelectItem value="all">All user types</SelectItem>
             {userTypes.map((ut) => (
-              <SelectItem key={ut.id} value={ut.id}>
-                {ut.typeName}
+              <SelectItem key={ut._id} value={ut._id}>
+                {ut.userTypeName}
               </SelectItem>
             ))}
           </SelectContent>
@@ -437,8 +427,8 @@ export function PrintCenter({
             <SelectContent>
               <SelectItem value="all">All user types</SelectItem>
               {userTypes.map((ut) => (
-                <SelectItem key={ut.id} value={ut.id}>
-                  {ut.typeName}
+                <SelectItem key={ut._id} value={ut._id}>
+                  {ut.userTypeName}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -577,7 +567,7 @@ export function PrintCenter({
         </div>
       </div>
 
-      {/* Users List - Mobile Cards */}
+      {/* Mobile Cards */}
       <div className="md:hidden space-y-3">
         {filteredUsers.map((user) => (
           <div
@@ -597,7 +587,6 @@ export function PrintCenter({
                 className="mt-1"
               />
               <div className="flex-1 min-w-0">
-                {/* Top row: Reg No + User Type badge */}
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="font-semibold text-sm text-neutral-900 truncate">
                     {user.registrationNo}
@@ -609,48 +598,19 @@ export function PrintCenter({
                     {user.userTypeName}
                   </Badge>
                 </div>
-
-                {/* Full Name - always visible */}
                 <div className="text-sm font-medium text-neutral-800 truncate">
                   {user.fullName}
                 </div>
-
-                {/* Email - always visible */}
                 {user.email && (
                   <div className="text-xs text-neutral-500 truncate mt-0.5">
                     {user.email}
                   </div>
                 )}
-
-                {/* Phone - always visible */}
                 {user.phone && (
                   <div className="text-xs text-neutral-500 mt-0.5">
                     {user.phone}
                   </div>
                 )}
-
-                {/* IMC Number - show if present */}
-                {user.imcNumber && (
-                  <div className="text-xs text-neutral-500 mt-0.5">
-                    IMC: {user.imcNumber}
-                  </div>
-                )}
-
-                {/* Reference - show if present */}
-                {user.reference && (
-                  <div className="text-xs text-neutral-500 mt-0.5 truncate">
-                    Ref: {user.reference}
-                  </div>
-                )}
-
-                {/* Note - show if present */}
-                {user.note && (
-                  <div className="text-xs text-neutral-400 mt-1 italic truncate">
-                    {user.note}
-                  </div>
-                )}
-
-                {/* Action buttons */}
                 <div className="flex items-center gap-2 mt-3">
                   <Button
                     size="sm"
@@ -678,7 +638,6 @@ export function PrintCenter({
             </div>
           </div>
         ))}
-
         {filteredUsers.length === 0 && (
           <div className="text-center py-12 text-neutral-400">
             No users found. Click "Add User" to create one.
@@ -686,7 +645,7 @@ export function PrintCenter({
         )}
       </div>
 
-      {/* Add/Edit User Sheet with Permissions */}
+      {/* Add/Edit User Sheet */}
       <Sheet open={addUserOpen} onOpenChange={setAddUserOpen}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto p-0">
           <SheetHeader className="p-4 sm:p-6 pb-0">
@@ -706,7 +665,6 @@ export function PrintCenter({
             }}
             className="space-y-4 px-4 sm:px-6 py-4"
           >
-            {/* User Details */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <Label className="text-sm">Registration No *</Label>
@@ -732,8 +690,8 @@ export function PrintCenter({
                   </SelectTrigger>
                   <SelectContent>
                     {userTypes.map((ut) => (
-                      <SelectItem key={ut.id} value={ut.id}>
-                        {ut.typeName}
+                      <SelectItem key={ut._id} value={ut._id}>
+                        {ut.userTypeName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -809,7 +767,7 @@ export function PrintCenter({
               </div>
             </div>
 
-            {/* Permissions Section */}
+            {/* Permissions */}
             {selectedUserTypeId && categories.length > 0 && (
               <div className="border-t pt-4 mt-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
@@ -820,7 +778,6 @@ export function PrintCenter({
                     ✔ = allow, empty = block
                   </span>
                 </div>
-
                 <div className="space-y-3">
                   {Object.entries(groupedCategories).map(
                     ([groupId, groupCats]) => (
@@ -847,7 +804,9 @@ export function PrintCenter({
                                   className="text-green-600 text-[10px] h-7 px-2"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleBulkAllow(groupCats.map((c) => c.id));
+                                    handleBulkAllow(
+                                      groupCats.map((c) => c._id),
+                                    );
                                   }}
                                 >
                                   Allow all
@@ -858,7 +817,9 @@ export function PrintCenter({
                                   className="text-red-600 text-[10px] h-7 px-2"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleBulkBlock(groupCats.map((c) => c.id));
+                                    handleBulkBlock(
+                                      groupCats.map((c) => c._id),
+                                    );
                                   }}
                                 >
                                   Block all
@@ -870,15 +831,15 @@ export function PrintCenter({
                                 {groupCats.map((cat) => {
                                   const allowed = isPermissionAllowed(
                                     selectedUserTypeId,
-                                    cat.id,
+                                    cat._id,
                                   );
                                   return (
                                     <div
-                                      key={cat.id}
+                                      key={cat._id}
                                       className="flex items-center justify-between py-2 px-2 hover:bg-neutral-50 rounded gap-2"
                                     >
                                       <span className="text-xs sm:text-sm text-neutral-700 flex-1 min-w-0 truncate">
-                                        {cat.name}
+                                        {cat.categoryName}
                                       </span>
                                       <Button
                                         size="sm"
@@ -891,7 +852,7 @@ export function PrintCenter({
                                             : ""
                                         }`}
                                         onClick={() =>
-                                          handleTogglePermission(cat.id)
+                                          handleTogglePermission(cat._id)
                                         }
                                       >
                                         {allowed ? (
@@ -920,7 +881,6 @@ export function PrintCenter({
               </div>
             )}
 
-            {/* Show message if no user type selected */}
             {!selectedUserTypeId && categories.length > 0 && (
               <div className="border-t pt-4 mt-4">
                 <div className="text-center py-4 text-neutral-500">

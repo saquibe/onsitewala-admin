@@ -56,7 +56,7 @@ export function Privileges({
   const filteredUserTypes =
     filterType === "all"
       ? userTypes
-      : userTypes.filter((ut) => ut.id === filterType);
+      : userTypes.filter((ut) => ut._id === filterType);
 
   return (
     <div className="bg-white rounded-xl border border-neutral-200 p-5">
@@ -74,8 +74,8 @@ export function Privileges({
           <SelectContent>
             <SelectItem value="all">All User Types</SelectItem>
             {userTypes.map((ut) => (
-              <SelectItem key={ut.id} value={ut.id}>
-                {ut.typeName}
+              <SelectItem key={ut._id} value={ut._id}>
+                {ut.userTypeName}
               </SelectItem>
             ))}
           </SelectContent>
@@ -90,10 +90,10 @@ export function Privileges({
                 User Type
               </TableHead>
               {categories.map((cat) => (
-                <TableHead key={cat.id} className="min-w-[100px] text-center">
-                  <div className="text-xs font-medium">{cat.code}</div>
+                <TableHead key={cat._id} className="min-w-[100px] text-center">
+                  <div className="text-xs font-medium">{cat.categoryCode}</div>
                   <div className="text-xs text-neutral-500 truncate max-w-[80px]">
-                    {cat.name}
+                    {cat.categoryName}
                   </div>
                 </TableHead>
               ))}
@@ -104,20 +104,20 @@ export function Privileges({
           </TableHeader>
           <TableBody>
             {filteredUserTypes.map((ut) => (
-              <TableRow key={ut.id}>
+              <TableRow key={ut._id}>
                 <TableCell className="font-medium sticky left-0 bg-white z-10">
-                  {ut.typeName}
+                  {ut.userTypeName}
                 </TableCell>
                 {categories.map((cat) => {
-                  const allowed = isAllowed(ut.id, cat.id);
+                  const allowed = isAllowed(ut._id, cat._id);
                   return (
-                    <TableCell key={cat.id} className="text-center">
+                    <TableCell key={cat._id} className="text-center">
                       <Button
                         size="sm"
                         variant={allowed ? "default" : "outline"}
                         className={`w-20 ${allowed ? "bg-green-600 hover:bg-green-700" : ""}`}
                         onClick={() =>
-                          onTogglePermission(ut.id, cat.id, !allowed)
+                          onTogglePermission(ut._id, cat._id, !allowed)
                         }
                       >
                         {allowed ? (
@@ -139,7 +139,7 @@ export function Privileges({
                       size="sm"
                       variant="outline"
                       className="text-green-600 text-xs"
-                      onClick={() => onBulkAllowAll(ut.id)}
+                      onClick={() => onBulkAllowAll(ut._id)}
                     >
                       Allow all
                     </Button>
@@ -147,7 +147,7 @@ export function Privileges({
                       size="sm"
                       variant="outline"
                       className="text-red-600 text-xs"
-                      onClick={() => onBulkBlockAll(ut.id)}
+                      onClick={() => onBulkBlockAll(ut._id)}
                     >
                       Block all
                     </Button>

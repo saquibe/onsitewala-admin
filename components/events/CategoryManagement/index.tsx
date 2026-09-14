@@ -4,24 +4,29 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tag, FolderTree, Layers } from "lucide-react";
-import type { UserType, CategoryGroup, Category } from "../types";
+import type { RegDataType, CategoryGroup, Category } from "../types"; // ← RegDataType
 import { UserTypesTab } from "./UserTypesTab";
 import { CategoryGroupsTab } from "./CategoryGroupsTab";
 import { CategoriesTab } from "./CategoriesTab";
 
 interface CategoryManagementProps {
-  userTypes: UserType[];
+  userTypes: RegDataType[]; // ← RegDataType[]
   categoryGroups: CategoryGroup[];
   categories: Category[];
-  onAddUserType: (name: string) => void;
-  onUpdateUserType: (id: string, name: string) => void;
-  onDeleteUserType: (id: string) => void;
-  onAddCategoryGroup: (group: Omit<CategoryGroup, "id">) => void;
-  onUpdateCategoryGroup: (id: string, data: Partial<CategoryGroup>) => void;
-  onDeleteCategoryGroup: (id: string) => void;
-  onAddCategory: (category: Omit<Category, "id">) => void;
-  onUpdateCategory: (id: string, data: Partial<Category>) => void;
-  onDeleteCategory: (id: string) => void;
+  onAddUserType: (name: string) => Promise<void>;
+  onUpdateUserType: (id: string, name: string) => Promise<void>;
+  onDeleteUserType: (id: string) => Promise<void>;
+  onAddCategoryGroup: (
+    group: Omit<CategoryGroup, "_id" | "eventId">,
+  ) => Promise<void>;
+  onUpdateCategoryGroup: (
+    id: string,
+    data: Partial<CategoryGroup>,
+  ) => Promise<void>;
+  onDeleteCategoryGroup: (id: string) => Promise<void>;
+  onAddCategory: (category: Omit<Category, "_id" | "eventId">) => Promise<void>;
+  onUpdateCategory: (id: string, data: Partial<Category>) => Promise<void>;
+  onDeleteCategory: (id: string) => Promise<void>;
   loading?: boolean;
 }
 
@@ -47,7 +52,6 @@ export function CategoryManagement({
   return (
     <div className="bg-white rounded-xl border border-neutral-200 p-3 sm:p-5">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        {/* Mobile: Full-width tabs that scroll horizontally if needed */}
         <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 mb-4">
           <TabsList className="w-full sm:w-auto inline-flex min-w-full sm:min-w-0">
             <TabsTrigger

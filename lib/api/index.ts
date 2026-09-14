@@ -1,6 +1,20 @@
 // lib/api/index.ts
-export * from "./auth";
-export * from "./venues";
-export * from "./organizers";
-export * from "./events";
+
+// Client
 export { apiClient } from "./client";
+export type { ApiResponse } from "./client";
+
+// Auth
+export * from "./auth";
+
+// Venues
+export * from "./venues";
+
+// Organizers
+export * from "./organizers";
+
+// Events
+export * from "./events";
+
+// Categories
+export * from "./categories";

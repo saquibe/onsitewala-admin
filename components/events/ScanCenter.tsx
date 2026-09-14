@@ -28,7 +28,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
 import type { ScanCategory, ScanUser, UserType } from "./types";
 
 interface ScanCenterProps {
@@ -59,7 +58,7 @@ export function ScanCenter({
         u.email.toLowerCase().includes(search)) &&
       (userTypeFilter === "all" ||
         u.userTypeName ===
-          userTypes.find((t) => t.id === userTypeFilter)?.typeName)
+          userTypes.find((t) => t._id === userTypeFilter)?.userTypeName)
     );
   });
 
@@ -183,8 +182,8 @@ export function ScanCenter({
                     <SelectContent>
                       <SelectItem value="all">All user types</SelectItem>
                       {userTypes.map((ut) => (
-                        <SelectItem key={ut.id} value={ut.id}>
-                          {ut.typeName}
+                        <SelectItem key={ut._id} value={ut._id}>
+                          {ut.userTypeName}
                         </SelectItem>
                       ))}
                     </SelectContent>

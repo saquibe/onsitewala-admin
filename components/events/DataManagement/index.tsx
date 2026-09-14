@@ -49,6 +49,7 @@ import type {
   PrintUser,
   UserType,
   Category,
+  CategoryGroup,
   CategoryPermission,
 } from "../types";
 
@@ -56,6 +57,7 @@ interface DataManagementProps {
   users: PrintUser[];
   userTypes: UserType[];
   categories: Category[];
+  categoryGroups: CategoryGroup[];
   permissions: CategoryPermission[];
   onAddUser: (
     user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
@@ -80,6 +82,7 @@ export function DataManagement({
   users,
   userTypes,
   categories,
+  categoryGroups,
   permissions,
   onAddUser,
   onImportCSV,
@@ -98,7 +101,6 @@ export function DataManagement({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
 
-  // Form state
   const [formData, setFormData] = useState({
     registrationNo: "",
     userTypeId: "",
@@ -110,16 +112,15 @@ export function DataManagement({
     reference: "",
   });
 
-  // Permissions state for the form
   const [formPermissions, setFormPermissions] = useState<CategoryPermission[]>(
     [],
   );
   const [selectedUserTypeId, setSelectedUserTypeId] = useState("");
 
-  // Group categories by group name
+  // Group categories by groupCategoryId
   const groupedCategories = categories.reduce(
     (acc, cat) => {
-      const group = cat.groupId || "Uncategorized";
+      const group = cat.groupCategoryId || "Uncategorized";
       if (!acc[group]) acc[group] = [];
       acc[group].push(cat);
       return acc;
@@ -127,16 +128,10 @@ export function DataManagement({
     {} as Record<string, Category[]>,
   );
 
-  const getGroupName = (groupId: string) => {
-    const groupNames: Record<string, string> = {
-      "1": "Certificate Scan",
-      "2": "Food Scan",
-      "3": "Gift",
-    };
-    return groupNames[groupId] || groupId;
-  };
+  const getGroupName = (groupId: string) =>
+    categoryGroups.find((g) => g._id === groupId)?.groupCategoryName ||
+    "Uncategorized";
 
-  // Reset form permissions when user type changes
   useEffect(() => {
     if (selectedUserTypeId) {
       const userPermissions = permissions.filter(
@@ -162,7 +157,6 @@ export function DataManagement({
 
   const handleTogglePermission = (categoryId: string) => {
     if (!selectedUserTypeId) return;
-
     const current = isPermissionAllowed(selectedUserTypeId, categoryId);
     const newPermissions = current
       ? formPermissions.filter(
@@ -175,14 +169,12 @@ export function DataManagement({
           ...formPermissions,
           { userTypeId: selectedUserTypeId, categoryId, allowed: true },
         ];
-
     setFormPermissions(newPermissions);
     onTogglePermission(selectedUserTypeId, categoryId, !current);
   };
 
   const handleBulkAllow = (categoryIds: string[]) => {
     if (!selectedUserTypeId) return;
-
     const newPermissions = [...formPermissions];
     categoryIds.forEach((catId) => {
       const existing = newPermissions.find(
@@ -204,7 +196,6 @@ export function DataManagement({
 
   const handleBulkBlock = (categoryIds: string[]) => {
     if (!selectedUserTypeId) return;
-
     const newPermissions = formPermissions.filter(
       (p) =>
         !(
@@ -264,8 +255,7 @@ export function DataManagement({
 
   const openAddForm = () => {
     resetForm();
-    // Set initial user type to first one if available
-    const initialUserType = userTypes.length > 0 ? userTypes[0].id : "";
+    const initialUserType = userTypes.length > 0 ? userTypes[0]._id : "";
     if (initialUserType) {
       setSelectedUserTypeId(initialUserType);
       setFormData({ ...formData, userTypeId: initialUserType });
@@ -394,7 +384,7 @@ export function DataManagement({
         </div>
       </div>
 
-      {/* Add User Dialog with Permissions */}
+      {/* Add User Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -425,8 +415,8 @@ export function DataManagement({
                 </SelectTrigger>
                 <SelectContent>
                   {userTypes.map((ut) => (
-                    <SelectItem key={ut.id} value={ut.id}>
-                      {ut.typeName}
+                    <SelectItem key={ut._id} value={ut._id}>
+                      {ut.userTypeName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -522,7 +512,7 @@ export function DataManagement({
                             variant="outline"
                             className="text-green-600 text-xs"
                             onClick={() =>
-                              handleBulkAllow(groupCats.map((c) => c.id))
+                              handleBulkAllow(groupCats.map((c) => c._id))
                             }
                           >
                             Allow all
@@ -532,7 +522,7 @@ export function DataManagement({
                             variant="outline"
                             className="text-red-600 text-xs"
                             onClick={() =>
-                              handleBulkBlock(groupCats.map((c) => c.id))
+                              handleBulkBlock(groupCats.map((c) => c._id))
                             }
                           >
                             Block all
@@ -543,21 +533,21 @@ export function DataManagement({
                         {groupCats.map((cat) => {
                           const allowed = isPermissionAllowed(
                             selectedUserTypeId,
-                            cat.id,
+                            cat._id,
                           );
                           return (
                             <div
-                              key={cat.id}
+                              key={cat._id}
                               className="flex items-center justify-between py-1 px-2 hover:bg-neutral-50 rounded"
                             >
                               <span className="text-sm text-neutral-700">
-                                {cat.name}
+                                {cat.categoryName}
                               </span>
                               <Button
                                 size="sm"
                                 variant={allowed ? "default" : "outline"}
                                 className={`w-20 ${allowed ? "bg-green-600 hover:bg-green-700" : ""}`}
-                                onClick={() => handleTogglePermission(cat.id)}
+                                onClick={() => handleTogglePermission(cat._id)}
                               >
                                 {allowed ? (
                                   <>
@@ -582,7 +572,6 @@ export function DataManagement({
             </div>
           )}
 
-          {/* Show message if no user type selected */}
           {!selectedUserTypeId && categories.length > 0 && (
             <div className="border-t pt-4 mt-2">
               <div className="text-center py-4 text-neutral-500">

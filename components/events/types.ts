@@ -1,38 +1,70 @@
 // components/events/types.ts
+
+// ============================================
+// User Types (backend: user_types collection)
+// ============================================
 export interface UserType {
-  id: string;
-  typeName: string;
-}
-
-export interface CategoryGroup {
-  id: string;
-  groupName: string;
-  description?: string;
-  icon?: string;
-}
-
-export interface Category {
-  id: string;
-  code: string;
-  name: string;
-  groupId: string;
-  active: boolean;
-  metadata?: {
-    day?: number;
-    hall?: string;
-    session?: string;
-    time?: string;
-  };
+  _id: string;
+  eventId?: string;
+  userTypeName: string;
+  regDataTypeName: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
+// ============================================
+// Category Group (backend: GroupCategory schema)
+// ============================================
+export interface CategoryGroup {
+  _id: string;
+  eventId: string;
+  groupCategoryName: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ============================================
+// Category (backend: Category schema)
+// ============================================
+export interface Category {
+  _id: string;
+  eventId: string;
+  categoryCode: string;
+  categoryName: string;
+  groupCategoryId: string;
+  status: "active" | "inactive";
+  day?: string;
+  hall?: string;
+  session?: string;
+  time?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ============================================
+// Reg Data Type (backend: RegDataType schema)
+// ============================================
+export interface RegDataType {
+  _id: string;
+  eventId: string;
+  regDataTypeName: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ============================================
+// Permission
+// ============================================
 export interface CategoryPermission {
   userTypeId: string;
   categoryId: string;
   allowed: boolean;
 }
 
+// ============================================
+// Print User
+// ============================================
 export interface PrintUser {
   id: string;
   registrationNo: string;
@@ -47,9 +79,12 @@ export interface PrintUser {
   customField1?: string;
   customField2?: string;
   printed: boolean;
-  permissions?: CategoryPermission[]; // Add permissions to user
+  permissions?: CategoryPermission[];
 }
 
+// ============================================
+// Scan User
+// ============================================
 export interface ScanUser {
   id: string;
   registrationNo: string;
@@ -60,6 +95,9 @@ export interface ScanUser {
   scanned: boolean;
 }
 
+// ============================================
+// Scan Category
+// ============================================
 export interface ScanCategory {
   id: string;
   name: string;
@@ -67,6 +105,9 @@ export interface ScanCategory {
   count: number;
 }
 
+// ============================================
+// Dashboard Card
+// ============================================
 export interface DashboardCard {
   title: string;
   count: number;

@@ -15,7 +15,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Header } from "@/components/Header";
-import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { venuesApi, organizersApi, eventsApi } from "@/lib/api";
 import type { Venue, Organizer, Event } from "@/lib/api";
@@ -31,14 +30,12 @@ import { VenueCard } from "@/components/events/VenueCard";
 
 type Tab = "events" | "venue" | "organizer";
 
-// Navigation items
 const NAV_ITEMS = [
   { id: "events" as Tab, icon: Calendar, label: "Events" },
   { id: "venue" as Tab, icon: MapPin, label: "Venues" },
   { id: "organizer" as Tab, icon: Users, label: "Organizers" },
 ];
 
-// Helper functions
 const getVenueObject = (venue: Venue | string | undefined): Venue | null => {
   if (!venue) return null;
   if (typeof venue === "object" && venue.venueName) return venue;
@@ -70,7 +67,6 @@ export default function EventsPage() {
   const [editVenue, setEditVenue] = useState<Venue | null>(null);
   const [editOrganizer, setEditOrganizer] = useState<Organizer | null>(null);
 
-  // Load data
   useEffect(() => {
     loadData();
   }, []);
@@ -105,7 +101,6 @@ export default function EventsPage() {
 
   const openEvent = (id: string) => router.push(`/events/${id}/dashboard`);
 
-  // Filter events
   const filteredEvents = events.filter((e) => {
     const search = eventSearch.toLowerCase();
     const venue = getVenueObject(e.venueId);
@@ -177,7 +172,6 @@ export default function EventsPage() {
       <Header />
 
       <div className="flex-1 flex">
-        {/* Desktop Sidebar - Hidden on mobile */}
         <aside className="hidden md:flex w-16 lg:w-20 bg-neutral-900 text-white flex-col items-center py-6 gap-2 flex-shrink-0">
           <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center">
             <LayoutGrid className="w-5 h-5" />
@@ -198,9 +192,7 @@ export default function EventsPage() {
           </nav>
         </aside>
 
-        {/* Main content */}
         <main className="flex-1 overflow-auto pb-20 md:pb-0">
-          {/* Header with Tabs */}
           <div className="bg-white border-b border-neutral-200 px-4 sm:px-6 pt-4">
             <div className="flex items-center justify-between gap-3">
               <h1 className="text-lg sm:text-xl font-bold text-neutral-900 capitalize">
@@ -217,7 +209,6 @@ export default function EventsPage() {
               </Button>
             </div>
 
-            {/* Desktop Tabs */}
             <div className="hidden sm:flex gap-6 mt-3">
               {NAV_ITEMS.map((item) => (
                 <button
@@ -313,7 +304,6 @@ export default function EventsPage() {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-neutral-900 text-white safe-area-bottom">
         <nav className="flex items-center justify-around h-16">
           {NAV_ITEMS.map((item) => {
@@ -323,11 +313,8 @@ export default function EventsPage() {
                 key={item.id}
                 onClick={() => setTab(item.id)}
                 className={`flex flex-col items-center justify-center flex-1 h-full transition relative ${
-                  isActive
-                    ? "text-orange-500"
-                    : "text-white/60 active:text-white/80"
+                  isActive ? "text-orange-500" : "text-white/60"
                 }`}
-                aria-label={item.label}
               >
                 <item.icon
                   className={`w-5 h-5 ${isActive ? "stroke-[2.5]" : ""}`}
@@ -346,7 +333,6 @@ export default function EventsPage() {
         </nav>
       </div>
 
-      {/* Dialogs */}
       <EventDialog
         open={eventDialog}
         onOpenChange={setEventDialog}

@@ -6,29 +6,18 @@ import { useDashboardData } from "../_context/DataContext";
 
 export default function DataPage() {
   const data = useDashboardData();
-  const userTypes = (data.userTypes ?? []) as any;
 
   return (
     <div className="p-4 sm:p-6">
       <DataManagement
         users={data.printUsers}
-        userTypes={userTypes}
-        categories={data.categories}
-        categoryGroups={data.categoryGroups}
-        permissions={data.permissions}
-        onAddUser={data.addUser}
-        onImportCSV={async () => {}}
+        userTypes={data.userTypes}
+        onImportCSV={data.importCSV}
         onExportCSV={() => {}}
         onExportWithScans={() => {}}
-        onDeleteAllUsers={() => {}}
+        onDeleteAllUsers={data.deleteAllUsers}
         onRefresh={data.refresh}
-        onTogglePermission={data.togglePermission}
-        onBulkAllowAll={(userTypeId, categoryIds) =>
-          data.bulkAllowAll(userTypeId)
-        }
-        onBulkBlockAll={(userTypeId, categoryIds) =>
-          data.bulkBlockAll(userTypeId)
-        }
+        loading={data.loadingPrintUsers}
       />
     </div>
   );

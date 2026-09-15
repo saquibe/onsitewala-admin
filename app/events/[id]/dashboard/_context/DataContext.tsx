@@ -14,6 +14,10 @@ import {
   groupCategoriesApi,
   regDataTypesApi,
   privilegesApi,
+  registrationDataApi,
+  toPrintUser,
+  toCreatePayload,
+  toUpdatePayload,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import type {
@@ -36,6 +40,7 @@ interface DataContextType {
   loadingGroups: boolean;
   loadingUserTypes: boolean;
   loadingPermissions: boolean;
+  loadingPrintUsers: boolean;
 
   addUserType: (name: string) => Promise<void>;
   updateUserType: (id: string, name: string) => Promise<void>;
@@ -64,17 +69,20 @@ interface DataContextType {
 
   addUser: (
     user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
-    permissions: CategoryPermission[],
-  ) => void;
+    permissions?: CategoryPermission[],
+  ) => Promise<void>;
   editUser: (
     id: string,
     data: Partial<PrintUser>,
-    permissions: CategoryPermission[],
-  ) => void;
-  deleteUser: (id: string) => void;
+    permissions?: CategoryPermission[],
+  ) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
   printBadge: (userId: string) => void;
   bulkPrint: (userIds: string[]) => void;
   scanUser: (userId: string, categoryId: string) => void;
+
+  importCSV: (file: File, regDataTypeId: string) => Promise<number>;
+  deleteAllUsers: () => Promise<void>;
 
   refresh: () => Promise<void>;
 }
@@ -91,53 +99,6 @@ export function useDashboardData() {
   return ctx;
 }
 
-// Add a MOCK_PRINT_USERS constant
-const MOCK_PRINT_USERS: PrintUser[] = [
-  {
-    id: "mock_1",
-    registrationNo: "SPOT-0041",
-    userTypeId: "ut_1",
-    userTypeName: "Delegate",
-    email: "saivardhan@example.com",
-    fullName: "Dr. Saivardhan Reddy",
-    phone: "+91 9876543210",
-    imcNumber: "IMC001",
-    printed: false,
-  },
-  {
-    id: "mock_2",
-    registrationNo: "SPOT-0040",
-    userTypeId: "ut_2",
-    userTypeName: "Faculty",
-    email: "poorna@example.com",
-    fullName: "Dr. Poorna Royal",
-    phone: "+91 9876543211",
-    imcNumber: "IMC002",
-    printed: true,
-  },
-  {
-    id: "mock_3",
-    registrationNo: "SPOT-0039",
-    userTypeId: "ut_1",
-    userTypeName: "Delegate",
-    email: "sindhu@example.com",
-    fullName: "Dr. Sambaraju Sindhu",
-    phone: "+91 9876543212",
-    printed: false,
-  },
-  {
-    id: "mock_4",
-    registrationNo: "SPOT-0038",
-    userTypeId: "ut_3",
-    userTypeName: "Student",
-    email: "sujala@example.com",
-    fullName: "Dr. Sai Sujala Neela",
-    phone: "+91 9876543213",
-    imcNumber: "IMC004",
-    printed: false,
-  },
-];
-
 export function DashboardDataProvider({
   eventId,
   children,
@@ -151,12 +112,13 @@ export function DashboardDataProvider({
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [permissions, setPermissions] = useState<CategoryPermission[]>([]);
-  const [printUsers, setPrintUsers] = useState<PrintUser[]>(MOCK_PRINT_USERS);
+  const [printUsers, setPrintUsers] = useState<PrintUser[]>([]);
   const [scanUsers, setScanUsers] = useState<ScanUser[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [loadingUserTypes, setLoadingUserTypes] = useState(false);
   const [loadingPermissions, setLoadingPermissions] = useState(false);
+  const [loadingPrintUsers, setLoadingPrintUsers] = useState(false);
 
   // ============================================
   // Load user types
@@ -168,12 +130,14 @@ export function DashboardDataProvider({
         limit: 100,
       });
       setUserTypes(data || []);
+      return data || [];
     } catch (e: any) {
       toast({
         title: "Error",
         description: e.message || "Failed to load user types",
         variant: "destructive",
       });
+      return [];
     } finally {
       setLoadingUserTypes(false);
     }
@@ -187,12 +151,14 @@ export function DashboardDataProvider({
     try {
       const data = await categoriesApi.getCategories(eventId, { limit: 200 });
       setCategories(data || []);
+      return data || [];
     } catch (e: any) {
       toast({
         title: "Error",
         description: e.message || "Failed to load categories",
         variant: "destructive",
       });
+      return [];
     } finally {
       setLoadingCategories(false);
     }
@@ -208,37 +174,35 @@ export function DashboardDataProvider({
         limit: 100,
       });
       setCategoryGroups(data || []);
+      return data || [];
     } catch (e: any) {
       toast({
         title: "Error",
         description: e.message || "Failed to load category groups",
         variant: "destructive",
       });
+      return [];
     } finally {
       setLoadingGroups(false);
     }
   }, [eventId, toast]);
 
   // ============================================
-  // Load permissions (from privilege matrix)
+  // Load permissions
   // ============================================
   const loadPermissions = useCallback(async () => {
     setLoadingPermissions(true);
     try {
       const matrix = await privilegesApi.getPrivilegeMatrix(eventId);
-
-      // Convert privileges to the UI CategoryPermission shape
       const perms: CategoryPermission[] = (matrix.privileges || []).map(
         (p) => ({
-          userTypeId: p.regDataTypeId, // UI field name
+          userTypeId: p.regDataTypeId,
           categoryId: p.categoryId,
-          allowed: p.isAllowed, // UI field name
+          allowed: p.isAllowed,
         }),
       );
-
       setPermissions(perms);
     } catch (e: any) {
-      // Silent fail on matrix — it's ok if no privileges exist yet
       console.warn("Failed to load privilege matrix:", e);
       setPermissions([]);
     } finally {
@@ -247,14 +211,61 @@ export function DashboardDataProvider({
   }, [eventId]);
 
   // ============================================
-  // Single mount effect
+  // Load print users (registration-data)
+  // ============================================
+  const loadPrintUsers = useCallback(
+    async (types?: RegDataType[]) => {
+      setLoadingPrintUsers(true);
+      try {
+        const data = await registrationDataApi.getRegistrationData(eventId, {
+          limit: 500,
+        });
+        const typesToUse = types && types.length > 0 ? types : userTypes;
+        const mapped = (data || []).map((r) => toPrintUser(r, typesToUse));
+        setPrintUsers(mapped);
+
+        // Also populate scan users from same data
+        const scanMapped: ScanUser[] = mapped.map((u) => ({
+          id: u.id,
+          registrationNo: u.registrationNo,
+          userTypeName: u.userTypeName,
+          email: u.email,
+          fullName: u.fullName,
+          phone: u.phone,
+          scanned: false,
+        }));
+        setScanUsers(scanMapped);
+
+        return mapped;
+      } catch (e: any) {
+        toast({
+          title: "Error",
+          description: e.message || "Failed to load registration data",
+          variant: "destructive",
+        });
+        return [];
+      } finally {
+        setLoadingPrintUsers(false);
+      }
+    },
+    [eventId, userTypes, toast],
+  );
+
+  // ============================================
+  // Initial load
   // ============================================
   useEffect(() => {
-    loadUserTypes();
-    loadCategories();
-    loadGroups();
-    loadPermissions();
-  }, [loadUserTypes, loadCategories, loadGroups, loadPermissions]);
+    (async () => {
+      const types = await loadUserTypes();
+      await Promise.all([
+        loadCategories(),
+        loadGroups(),
+        loadPermissions(),
+        loadPrintUsers(types),
+      ]);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
 
   // ============================================
   // User Type handlers
@@ -294,16 +305,9 @@ export function DashboardDataProvider({
         description: "User type updated successfully",
       });
     } catch (e: any) {
-      const backendMessage =
-        e.response?.data?.message || e.message || "Failed to update user type";
-      const isDuplicate =
-        backendMessage.toLowerCase().includes("already exists") ||
-        e.response?.status === 409;
       toast({
-        title: isDuplicate ? "Already Exists" : "Error",
-        description: isDuplicate
-          ? `"${name}" is already a user type. Please use a different name.`
-          : backendMessage,
+        title: "Error",
+        description: e.message || "Failed to update user type",
         variant: "destructive",
       });
       throw e;
@@ -469,14 +473,13 @@ export function DashboardDataProvider({
   };
 
   // ============================================
-  // Permission handlers — API-backed via privileges
+  // Permission handlers
   // ============================================
   const togglePermission = async (
     userTypeId: string,
     categoryId: string,
     allowed: boolean,
   ) => {
-    // Optimistic update
     setPermissions((prev) => {
       const existing = prev.find(
         (p) => p.userTypeId === userTypeId && p.categoryId === categoryId,
@@ -492,8 +495,6 @@ export function DashboardDataProvider({
     });
 
     try {
-      // Try to create the privilege — if it exists, backend returns 409
-      // In that case, we need to find the existing privilege and PATCH it
       try {
         await privilegesApi.createPrivilege(eventId, {
           regDataTypeId: userTypeId,
@@ -501,7 +502,6 @@ export function DashboardDataProvider({
           isAllowed: allowed,
         });
       } catch (e: any) {
-        // If it's a 409 (duplicate), find the privilege and update it
         if (e.response?.status === 409) {
           const all = await privilegesApi.getPrivileges(eventId, {
             limit: 1000,
@@ -520,7 +520,6 @@ export function DashboardDataProvider({
         }
       }
     } catch (e: any) {
-      // Revert on error
       setPermissions((prev) =>
         prev.map((p) =>
           p.userTypeId === userTypeId && p.categoryId === categoryId
@@ -538,7 +537,6 @@ export function DashboardDataProvider({
   };
 
   const bulkAllowAll = async (userTypeId: string) => {
-    // Optimistic update
     const newPerms = categories.map((cat) => ({
       userTypeId,
       categoryId: cat._id,
@@ -551,12 +549,8 @@ export function DashboardDataProvider({
 
     try {
       await privilegesApi.allowAllCategories(eventId, userTypeId);
-      toast({
-        title: "Success",
-        description: "All categories allowed",
-      });
+      toast({ title: "Success", description: "All categories allowed" });
     } catch (e: any) {
-      // Reload on error
       await loadPermissions();
       toast({
         title: "Error",
@@ -568,7 +562,6 @@ export function DashboardDataProvider({
   };
 
   const bulkBlockAll = async (userTypeId: string) => {
-    // Optimistic update
     const newPerms = categories.map((cat) => ({
       userTypeId,
       categoryId: cat._id,
@@ -581,10 +574,7 @@ export function DashboardDataProvider({
 
     try {
       await privilegesApi.blockAllCategories(eventId, userTypeId);
-      toast({
-        title: "Success",
-        description: "All categories blocked",
-      });
+      toast({ title: "Success", description: "All categories blocked" });
     } catch (e: any) {
       await loadPermissions();
       toast({
@@ -597,41 +587,100 @@ export function DashboardDataProvider({
   };
 
   // ============================================
-  // Print User handlers (local state)
+  // User handlers (registration-data)
   // ============================================
-  const addUser = (
+  const addUser = async (
     user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
-    userPerms: CategoryPermission[],
+    _userPerms: CategoryPermission[] = [],
   ) => {
-    const newUser: PrintUser = {
-      ...user,
-      id: `user_${Date.now()}`,
-      printed: false,
-      userTypeName:
-        userTypes.find((ut) => ut._id === user.userTypeId)?.regDataTypeName ||
-        "",
-      permissions: userPerms,
-    };
-    setPrintUsers((prev) => [...prev, newUser]);
+    try {
+      const payload = toCreatePayload(user);
+      const created = await registrationDataApi.createRegistrationData(
+        eventId,
+        payload,
+      );
+      const mapped = toPrintUser(created, userTypes);
+      setPrintUsers((prev) => [...prev, mapped]);
+
+      setScanUsers((prev) => [
+        ...prev,
+        {
+          id: mapped.id,
+          registrationNo: mapped.registrationNo,
+          userTypeName: mapped.userTypeName,
+          email: mapped.email,
+          fullName: mapped.fullName,
+          phone: mapped.phone,
+          scanned: false,
+        },
+      ]);
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e.message || "Failed to add user",
+        variant: "destructive",
+      });
+      throw e;
+    }
   };
 
-  const editUser = (
+  const editUser = async (
     id: string,
     data: Partial<PrintUser>,
-    userPerms: CategoryPermission[],
+    _userPerms: CategoryPermission[] = [],
   ) => {
-    setPrintUsers((prev) =>
-      prev.map((u) =>
-        u.id === id ? { ...u, ...data, permissions: userPerms } : u,
-      ),
-    );
+    try {
+      const payload = toUpdatePayload(data);
+      const updated = await registrationDataApi.updateRegistrationData(
+        eventId,
+        id,
+        payload,
+      );
+      const mapped = toPrintUser(updated, userTypes);
+      setPrintUsers((prev) => prev.map((u) => (u.id === id ? mapped : u)));
+      setScanUsers((prev) =>
+        prev.map((u) =>
+          u.id === id
+            ? {
+                ...u,
+                registrationNo: mapped.registrationNo,
+                userTypeName: mapped.userTypeName,
+                email: mapped.email,
+                fullName: mapped.fullName,
+                phone: mapped.phone,
+              }
+            : u,
+        ),
+      );
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e.message || "Failed to update user",
+        variant: "destructive",
+      });
+      throw e;
+    }
   };
 
-  const deleteUser = (id: string) => {
-    setPrintUsers((prev) => prev.filter((u) => u.id !== id));
-    setScanUsers((prev) => prev.filter((u) => u.id !== id));
+  const deleteUser = async (id: string) => {
+    try {
+      await registrationDataApi.deleteRegistrationData(eventId, id);
+      setPrintUsers((prev) => prev.filter((u) => u.id !== id));
+      setScanUsers((prev) => prev.filter((u) => u.id !== id));
+      toast({ title: "Success", description: "User deleted successfully" });
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e.message || "Failed to delete user",
+        variant: "destructive",
+      });
+      throw e;
+    }
   };
 
+  // ============================================
+  // Print + scan (local only)
+  // ============================================
   const printBadge = (userId: string) => {
     setPrintUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, printed: true } : u)),
@@ -644,18 +693,66 @@ export function DashboardDataProvider({
     );
   };
 
-  const scanUser = (userId: string, categoryId: string) => {
+  const scanUser = (userId: string, _categoryId: string) => {
     setScanUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, scanned: true } : u)),
     );
   };
 
+  // ============================================
+  // Data management
+  // ============================================
+  const importCSV = async (file: File, regDataTypeId: string) => {
+    try {
+      const result = await registrationDataApi.importRegistrationData(
+        eventId,
+        regDataTypeId,
+        file,
+      );
+      await loadPrintUsers();
+      toast({
+        title: "Import successful",
+        description: `Imported ${result.importedCount} records`,
+      });
+      return result.importedCount;
+    } catch (e: any) {
+      toast({
+        title: "Import failed",
+        description: e.message || "Failed to import registration data",
+        variant: "destructive",
+      });
+      throw e;
+    }
+  };
+
+  const deleteAllUsers = async () => {
+    try {
+      const result =
+        await registrationDataApi.deleteAllRegistrationData(eventId);
+      setPrintUsers([]);
+      setScanUsers([]);
+      toast({
+        title: "Deleted",
+        description: `Removed ${result.deletedCount} records`,
+        variant: "destructive",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e.message || "Failed to delete all users",
+        variant: "destructive",
+      });
+      throw e;
+    }
+  };
+
   const refresh = async () => {
+    const types = await loadUserTypes();
     await Promise.all([
-      loadUserTypes(),
       loadCategories(),
       loadGroups(),
       loadPermissions(),
+      loadPrintUsers(types),
     ]);
   };
 
@@ -672,6 +769,7 @@ export function DashboardDataProvider({
         loadingGroups,
         loadingUserTypes,
         loadingPermissions,
+        loadingPrintUsers,
         addUserType,
         updateUserType,
         deleteUserType,
@@ -690,6 +788,8 @@ export function DashboardDataProvider({
         printBadge,
         bulkPrint,
         scanUser,
+        importCSV,
+        deleteAllUsers,
         refresh,
       }}
     >

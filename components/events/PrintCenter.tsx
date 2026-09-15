@@ -177,11 +177,6 @@ export function PrintCenter({
             onChange={handleFileUpload}
             className="hidden"
           />
-          <Button variant="outline" className="gap-2 h-10" asChild>
-            <span>
-              <Upload className="w-4 h-4" /> Import
-            </span>
-          </Button>
         </label>
       </div>
 

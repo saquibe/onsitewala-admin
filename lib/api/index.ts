@@ -20,3 +20,5 @@ export * from "./events";
 export * from "./categories";
 
 export * from "./privileges";
+
+export * from "./registrationData";

@@ -76,8 +76,10 @@ export interface PrintUser {
   imcNumber?: string;
   note?: string;
   reference?: string;
-  customField1?: string;
-  customField2?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
   printed: boolean;
   permissions?: CategoryPermission[];
 }

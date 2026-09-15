@@ -1,7 +1,7 @@
 // components/events/DataManagement/index.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import {
   Upload,
   Download,
@@ -10,22 +10,17 @@ import {
   Loader2,
   Trash2,
   AlertTriangle,
-  Plus,
   Database,
-  CheckCircle,
-  XCircle as XCircleIcon,
+  CheckCircle2,
+  XCircle,
+  Info,
+  FileDown,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,233 +38,186 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import type {
-  PrintUser,
-  UserType,
-  Category,
-  CategoryGroup,
-  CategoryPermission,
-} from "../types";
+import type { PrintUser, RegDataType } from "../types";
+import {
+  ALL_COLUMNS,
+  OPTIONAL_COLUMNS,
+  REQUIRED_COLUMNS,
+  ValidationResult,
+  downloadTemplate,
+  parseAndValidate,
+} from "@/lib/utils/csv-validator";
 
 interface DataManagementProps {
   users: PrintUser[];
-  userTypes: UserType[];
-  categories: Category[];
-  categoryGroups: CategoryGroup[];
-  permissions: CategoryPermission[];
-  onAddUser: (
-    user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
-    userPermissions: CategoryPermission[],
-  ) => void;
-  onImportCSV: (file: File) => Promise<void>;
+  userTypes: RegDataType[];
+  onImportCSV: (file: File, regDataTypeId: string) => Promise<number>;
   onExportCSV: () => void;
   onExportWithScans: () => void;
-  onDeleteAllUsers: () => void;
+  onDeleteAllUsers: () => Promise<void>;
   onRefresh: () => void;
-  onTogglePermission: (
-    userTypeId: string,
-    categoryId: string,
-    allowed: boolean,
-  ) => void;
-  onBulkAllowAll: (userTypeId: string, categoryIds: string[]) => void;
-  onBulkBlockAll: (userTypeId: string, categoryIds: string[]) => void;
   loading?: boolean;
 }
+
+const ACCEPTED_EXT = [".csv", ".xlsx", ".xls"];
 
 export function DataManagement({
   users,
   userTypes,
-  categories,
-  categoryGroups,
-  permissions,
-  onAddUser,
   onImportCSV,
   onExportCSV,
   onExportWithScans,
   onDeleteAllUsers,
   onRefresh,
-  onTogglePermission,
-  onBulkAllowAll,
-  onBulkBlockAll,
   loading = false,
 }: DataManagementProps) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
+  const [selectedUserType, setSelectedUserType] = useState(
+    userTypes[0]?._id || "",
+  );
   const [isUploading, setIsUploading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showAddDialog, setShowAddDialog] = useState(false);
 
-  const [formData, setFormData] = useState({
-    registrationNo: "",
-    userTypeId: "",
-    email: "",
-    fullName: "",
-    phone: "",
-    imcNumber: "",
-    note: "",
-    reference: "",
-  });
-
-  const [formPermissions, setFormPermissions] = useState<CategoryPermission[]>(
-    [],
-  );
-  const [selectedUserTypeId, setSelectedUserTypeId] = useState("");
-
-  // Group categories by groupCategoryId
-  const groupedCategories = categories.reduce(
-    (acc, cat) => {
-      const group = cat.groupCategoryId || "Uncategorized";
-      if (!acc[group]) acc[group] = [];
-      acc[group].push(cat);
-      return acc;
-    },
-    {} as Record<string, Category[]>,
+  // existing regNums in this event, lowercased
+  const existingRegNums = useMemo(
+    () =>
+      new Set(
+        users
+          .map((u) => String((u as any).regNum ?? "").toLowerCase())
+          .filter(Boolean),
+      ),
+    [users],
   );
 
-  const getGroupName = (groupId: string) =>
-    categoryGroups.find((g) => g._id === groupId)?.groupCategoryName ||
-    "Uncategorized";
+  const resetFile = () => {
+    setFile(null);
+    setValidation(null);
+    const input = document.getElementById(
+      "csv-file-input",
+    ) as HTMLInputElement | null;
+    if (input) input.value = "";
+  };
 
-  useEffect(() => {
-    if (selectedUserTypeId) {
-      const userPermissions = permissions.filter(
-        (p) => p.userTypeId === selectedUserTypeId,
-      );
-      setFormPermissions(userPermissions);
-    } else {
-      setFormPermissions([]);
+  const handleFileChange = async (f: File | null) => {
+    setValidation(null);
+    if (!f) {
+      setFile(null);
+      return;
     }
-  }, [selectedUserTypeId, permissions]);
 
-  const handleUserTypeChange = (value: string) => {
-    setSelectedUserTypeId(value);
-    setFormData({ ...formData, userTypeId: value });
-  };
+    const ext = "." + (f.name.split(".").pop() || "").toLowerCase();
+    if (!ACCEPTED_EXT.includes(ext)) {
+      toast({
+        title: "Unsupported file type",
+        description: `Please upload one of: ${ACCEPTED_EXT.join(", ")}`,
+        variant: "destructive",
+      });
+      resetFile();
+      return;
+    }
 
-  const isPermissionAllowed = (userTypeId: string, categoryId: string) => {
-    return formPermissions.some(
-      (p) =>
-        p.userTypeId === userTypeId && p.categoryId === categoryId && p.allowed,
-    );
-  };
+    if (f.size === 0) {
+      toast({
+        title: "File is empty",
+        description: "The selected file has no content.",
+        variant: "destructive",
+      });
+      resetFile();
+      return;
+    }
 
-  const handleTogglePermission = (categoryId: string) => {
-    if (!selectedUserTypeId) return;
-    const current = isPermissionAllowed(selectedUserTypeId, categoryId);
-    const newPermissions = current
-      ? formPermissions.filter(
-          (p) =>
-            !(
-              p.userTypeId === selectedUserTypeId && p.categoryId === categoryId
-            ),
-        )
-      : [
-          ...formPermissions,
-          { userTypeId: selectedUserTypeId, categoryId, allowed: true },
-        ];
-    setFormPermissions(newPermissions);
-    onTogglePermission(selectedUserTypeId, categoryId, !current);
-  };
+    setFile(f);
 
-  const handleBulkAllow = (categoryIds: string[]) => {
-    if (!selectedUserTypeId) return;
-    const newPermissions = [...formPermissions];
-    categoryIds.forEach((catId) => {
-      const existing = newPermissions.find(
-        (p) => p.userTypeId === selectedUserTypeId && p.categoryId === catId,
-      );
-      if (existing) {
-        existing.allowed = true;
-      } else {
-        newPermissions.push({
-          userTypeId: selectedUserTypeId,
-          categoryId: catId,
-          allowed: true,
+    // CSV can be validated in browser; xlsx needs server-side parse
+    if (ext === ".csv") {
+      setIsValidating(true);
+      try {
+        const result = await parseAndValidate(f, existingRegNums);
+        setValidation(result);
+      } catch (e: any) {
+        toast({
+          title: "Could not read file",
+          description: e?.message ?? "Failed to parse the CSV.",
+          variant: "destructive",
         });
+      } finally {
+        setIsValidating(false);
       }
-    });
-    setFormPermissions(newPermissions);
-    onBulkAllowAll(selectedUserTypeId, categoryIds);
-  };
-
-  const handleBulkBlock = (categoryIds: string[]) => {
-    if (!selectedUserTypeId) return;
-    const newPermissions = formPermissions.filter(
-      (p) =>
-        !(
-          p.userTypeId === selectedUserTypeId &&
-          categoryIds.includes(p.categoryId)
-        ),
-    );
-    setFormPermissions(newPermissions);
-    onBulkBlockAll(selectedUserTypeId, categoryIds);
+    }
   };
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file) {
+      toast({
+        title: "No file selected",
+        description: "Please choose a CSV or Excel file first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!selectedUserType) {
+      toast({
+        title: "No user type selected",
+        description: "Please select a user type before importing.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (validation && !validation.ok) {
+      toast({
+        title: "Fix errors before importing",
+        description: `${validation.issues.length} issue(s) found in your file.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsUploading(true);
     try {
-      await onImportCSV(file);
-      setFile(null);
-      toast({ title: "Success", description: "File imported successfully" });
+      const count = await onImportCSV(file, selectedUserType);
+      toast({
+        title: "Import complete",
+        description: `${count} user(s) imported successfully.`,
+      });
+      resetFile();
+    } catch {
+      // Error toasted in parent
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleAddUser = () => {
-    if (
-      !formData.registrationNo ||
-      !formData.userTypeId ||
-      !formData.fullName
-    ) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
+  const handleDelete = async () => {
+    try {
+      await onDeleteAllUsers();
+      setShowDeleteDialog(false);
+    } catch {
+      // Error toasted in parent
     }
-    onAddUser(formData, formPermissions);
-    setShowAddDialog(false);
-    resetForm();
-    toast({ title: "Success", description: "User added successfully" });
   };
 
-  const resetForm = () => {
-    setSelectedUserTypeId("");
-    setFormPermissions([]);
-    setFormData({
-      registrationNo: "",
-      userTypeId: "",
-      email: "",
-      fullName: "",
-      phone: "",
-      imcNumber: "",
-      note: "",
-      reference: "",
-    });
-  };
-
-  const openAddForm = () => {
-    resetForm();
-    const initialUserType = userTypes.length > 0 ? userTypes[0]._id : "";
-    if (initialUserType) {
-      setSelectedUserTypeId(initialUserType);
-      setFormData({ ...formData, userTypeId: initialUserType });
-      const initialPermissions = permissions.filter(
-        (p) => p.userTypeId === initialUserType,
-      );
-      setFormPermissions(initialPermissions);
-    }
-    setShowAddDialog(true);
-  };
+  const canUpload =
+    !!file &&
+    !!selectedUserType &&
+    !isUploading &&
+    !isValidating &&
+    (!validation || validation.ok);
 
   return (
     <div className="space-y-6">
-      {/* Import/Export */}
+      {/* ── Import / Export ─────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-neutral-200 p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -277,8 +225,7 @@ export function DataManagement({
               Import / Export Users
             </h2>
             <p className="text-sm text-neutral-500">
-              Upload users via CSV (upsert by registration_no) or download all
-              users as CSV.
+              Upload users via CSV or Excel, or download all users as CSV.
             </p>
           </div>
           <Button variant="outline" onClick={onRefresh} className="gap-2">
@@ -287,47 +234,92 @@ export function DataManagement({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* ── Import ── */}
           <div className="border rounded-lg p-4">
             <h3 className="font-semibold text-neutral-900 mb-2 flex items-center gap-2">
-              <Upload className="w-4 h-4 text-orange-600" /> Import CSV
+              <Upload className="w-4 h-4 text-orange-600" /> Import Data
             </h3>
-            <p className="text-xs text-neutral-500 mb-3">
-              Required: registration_no*, user_type_id*
-              <br />
-              Optional: email, full_name, phone, IMC_number, custom_field1,
-              custom_field2, note, reference
-            </p>
-            <div className="space-y-3">
-              <Input
-                type="file"
-                accept=".csv"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="max-w-xs"
-              />
-              {file && (
-                <span className="text-sm text-neutral-600 flex items-center gap-1">
-                  <FileText className="w-4 h-4" /> {file.name}
-                </span>
-              )}
+
+            {/* Format guide */}
+            <FormatGuide />
+
+            <div className="space-y-3 mt-4">
+              {/* User Type */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-neutral-600">
+                  Select User Type *
+                </Label>
+                <Select
+                  value={selectedUserType}
+                  onValueChange={setSelectedUserType}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Select user type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userTypes.length === 0 ? (
+                      <div className="p-2 text-xs text-neutral-500 text-center">
+                        No user types available
+                      </div>
+                    ) : (
+                      userTypes.map((ut) => (
+                        <SelectItem key={ut._id} value={ut._id}>
+                          {ut.regDataTypeName}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* File */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-neutral-600">
+                  Choose File (.csv, .xlsx, .xls) *
+                </Label>
+                <Input
+                  id="csv-file-input"
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={(e) =>
+                    handleFileChange(e.target.files?.[0] || null)
+                  }
+                  className="max-w-full"
+                />
+                {file && (
+                  <span className="text-xs text-neutral-600 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" /> {file.name}
+                    {isValidating && (
+                      <Loader2 className="w-3 h-3 animate-spin ml-1" />
+                    )}
+                  </span>
+                )}
+              </div>
+
+              {/* Pre-flight validation result */}
+              {validation && <ValidationReport result={validation} />}
+
               <Button
                 onClick={handleUpload}
-                disabled={!file || isUploading}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
+                disabled={!canUpload}
+                className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto"
               >
                 {isUploading ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />{" "}
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Uploading...
                   </>
                 ) : (
                   <>
-                    <Upload className="w-4 h-4 mr-1" /> Upload CSV
+                    <Upload className="w-4 h-4 mr-1" />
+                    Upload File
                   </>
                 )}
               </Button>
             </div>
           </div>
 
+          {/* ── Export ── */}
           <div className="border rounded-lg p-4">
             <h3 className="font-semibold text-neutral-900 mb-2 flex items-center gap-2">
               <Download className="w-4 h-4 text-blue-600" /> Export
@@ -351,7 +343,25 @@ export function DataManagement({
         </div>
       </div>
 
-      {/* Danger Zone */}
+      {/* ── Users count ─────────────────────────────────────────── */}
+      {/* <div className="bg-white rounded-xl border border-neutral-200 p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-neutral-900">
+              Total Registered Users
+            </h3>
+            <p className="text-sm text-neutral-500 mt-1">
+              {users.length.toLocaleString()}{" "}
+              {users.length === 1 ? "user" : "users"} in this event
+            </p>
+          </div>
+          <div className="w-14 h-14 rounded-lg bg-orange-50 flex items-center justify-center">
+            <Database className="w-6 h-6 text-orange-600" />
+          </div>
+        </div>
+      </div> */}
+
+      {/* ── Danger zone ─────────────────────────────────────────── */}
       <div className="border-2 border-red-200 rounded-lg p-5 bg-red-50">
         <div className="flex items-start gap-4">
           <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
@@ -366,6 +376,7 @@ export function DataManagement({
             <Button
               variant="destructive"
               onClick={() => setShowDeleteDialog(true)}
+              disabled={users.length === 0}
               className="mt-3 gap-2"
             >
               <Trash2 className="w-4 h-4" /> Delete ALL Users
@@ -374,7 +385,7 @@ export function DataManagement({
         </div>
       </div>
 
-      {/* Delete Confirmation */}
+      {/* ── Delete dialog ───────────────────────────────────────── */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -382,24 +393,253 @@ export function DataManagement({
               <AlertTriangle className="w-5 h-5" /> Delete ALL Users
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete all
-              users and their associated data.
+              This action cannot be undone. This will permanently delete all{" "}
+              <strong>{users.length}</strong> users and their associated data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
-              onClick={() => {
-                onDeleteAllUsers();
-                setShowDeleteDialog(false);
-              }}
+              onClick={handleDelete}
             >
               Yes, Delete All
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+   Sub-components
+   ──────────────────────────────────────────────────────────── */
+
+function FormatGuide() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 text-blue-900 font-semibold"
+      >
+        <span className="flex items-center gap-1.5">
+          <Info className="w-3.5 h-3.5" /> File format guide
+        </span>
+        <span className="text-blue-700">{open ? "Hide" : "Show"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-2 text-blue-900/90">
+          <div>
+            <p className="font-medium mb-1">Required columns:</p>
+            <div className="flex flex-wrap gap-1">
+              {REQUIRED_COLUMNS.map((c) => (
+                <Badge
+                  key={c}
+                  className="bg-red-100 text-red-800 hover:bg-red-100 text-[10px]"
+                >
+                  {c} *
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="font-medium mb-1">Optional columns:</p>
+            <div className="flex flex-wrap gap-1">
+              {OPTIONAL_COLUMNS.map((c) => (
+                <Badge
+                  key={c}
+                  variant="secondary"
+                  className="text-[10px] bg-white text-neutral-700"
+                >
+                  {c}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <ul className="list-disc list-inside space-y-0.5 text-blue-900/80">
+            <li>Header row must be the first row.</li>
+            <li>Column names are case-insensitive.</li>
+            <li>
+              Save Excel sheets as <strong>.csv</strong>, <strong>.xlsx</strong>{" "}
+              or <strong>.xls</strong>.
+            </li>
+            <li>regNum must be unique within the file and the event.</li>
+          </ul>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={downloadTemplate}
+            className="gap-2 bg-white border-blue-200 text-blue-800 hover:bg-blue-50 mt-1"
+          >
+            <FileDown className="w-3.5 h-3.5" /> Download CSV template
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ValidationReport({ result }: { result: ValidationResult }) {
+  const [showAllIssues, setShowAllIssues] = useState(false);
+  const visibleIssues = showAllIssues
+    ? result.issues
+    : result.issues.slice(0, 5);
+
+  const status = result.ok ? "ok" : "error";
+
+  return (
+    <div
+      className={`rounded-lg border p-3 text-xs ${
+        status === "ok"
+          ? "border-green-200 bg-green-50"
+          : "border-red-200 bg-red-50"
+      }`}
+    >
+      <div className="flex items-center gap-2 font-semibold mb-2">
+        {status === "ok" ? (
+          <>
+            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <span className="text-green-800">
+              File looks good — {result.totalRows} row
+              {result.totalRows === 1 ? "" : "s"} ready to import
+            </span>
+          </>
+        ) : (
+          <>
+            <XCircle className="w-4 h-4 text-red-600" />
+            <span className="text-red-800">
+              Fix these issues before importing
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Summary badges */}
+      <div className="flex flex-wrap gap-1 mb-2">
+        <Badge variant="secondary" className="text-[10px]">
+          {result.totalRows} rows
+        </Badge>
+        <Badge
+          variant="secondary"
+          className="text-[10px] bg-green-100 text-green-800"
+        >
+          {result.validRows} valid
+        </Badge>
+        {result.issues.length > 0 && (
+          <Badge className="text-[10px] bg-red-100 text-red-800 hover:bg-red-100">
+            {result.issues.length} issues
+          </Badge>
+        )}
+      </div>
+
+      {/* Missing required columns */}
+      {result.missingRequired.length > 0 && (
+        <div className="mb-2 text-red-800">
+          <strong>Missing required column(s):</strong>{" "}
+          {result.missingRequired.join(", ")}
+        </div>
+      )}
+
+      {/* Unknown columns */}
+      {result.unknownColumns.length > 0 && (
+        <div className="mb-2 text-amber-800">
+          <strong>Ignored unknown column(s):</strong>{" "}
+          {result.unknownColumns.join(", ")}
+        </div>
+      )}
+
+      {/* Detected headers */}
+      {result.headers.length > 0 && (
+        <div className="mb-2 text-neutral-700">
+          <strong>Detected columns:</strong> {result.headers.join(", ")}
+        </div>
+      )}
+
+      {/* Issues table */}
+      {result.issues.length > 0 && (
+        <div className="mt-2 border-t border-red-200 pt-2">
+          <div className="font-semibold text-red-800 mb-1">Row errors:</div>
+          <div className="max-h-48 overflow-auto rounded border border-red-200 bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-[10px] h-7">Row</TableHead>
+                  <TableHead className="text-[10px] h-7">Column</TableHead>
+                  <TableHead className="text-[10px] h-7">Problem</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleIssues.map((i, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="text-[11px] py-1">{i.row}</TableCell>
+                    <TableCell className="text-[11px] py-1 font-mono">
+                      {i.column ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-[11px] py-1">
+                      {i.message}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {result.issues.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setShowAllIssues((s) => !s)}
+              className="mt-1 text-red-700 underline text-[11px]"
+            >
+              {showAllIssues
+                ? "Show fewer"
+                : `Show all ${result.issues.length} issues`}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Preview */}
+      {result.preview.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-neutral-700 flex items-center gap-1">
+            <Eye className="w-3 h-3" /> Preview first {result.preview.length}{" "}
+            rows
+          </summary>
+          <div className="mt-1 overflow-auto rounded border border-neutral-200 bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-[10px] h-7">#</TableHead>
+                  {ALL_COLUMNS.map((c) => (
+                    <TableHead key={c} className="text-[10px] h-7">
+                      {c}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {result.preview.map((r, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="text-[11px] py-1">
+                      {r.__rowNumber}
+                    </TableCell>
+                    {ALL_COLUMNS.map((c) => (
+                      <TableCell key={c} className="text-[11px] py-1">
+                        {String(r[c] ?? "")}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </details>
+      )}
     </div>
   );
 }

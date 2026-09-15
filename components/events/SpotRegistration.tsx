@@ -1,7 +1,7 @@
 // components/events/SpotRegistration.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter, useParams } from "next/navigation";
 import {
   UserPlus,
@@ -69,12 +69,12 @@ interface SpotRegistrationProps {
   onAddUser: (
     user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
     userPermissions: CategoryPermission[],
-  ) => void;
+  ) => Promise<void> | void;
   onEditUser?: (
     id: string,
     data: Partial<PrintUser>,
     userPermissions: CategoryPermission[],
-  ) => void;
+  ) => Promise<void> | void;
   onTogglePermission: (
     userTypeId: string,
     categoryId: string,
@@ -85,6 +85,24 @@ interface SpotRegistrationProps {
   onPrintBadge: (userId: string) => void;
   loading?: boolean;
 }
+
+// ============================================
+// Empty form state — single source of truth
+// ============================================
+const EMPTY_FORM = {
+  registrationNo: "",
+  userTypeId: "",
+  email: "",
+  fullName: "",
+  phone: "",
+  imcNumber: "",
+  note: "",
+  reference: "",
+  address: "",
+  city: "",
+  state: "",
+  country: "",
+};
 
 export function SpotRegistration({
   users,
@@ -103,30 +121,38 @@ export function SpotRegistration({
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingUser, setEditingUser] = useState<PrintUser | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [recentUsers, setRecentUsers] = useState<PrintUser[]>([]);
 
-  const [formData, setFormData] = useState({
-    registrationNo: "",
-    userTypeId: "",
-    email: "",
-    fullName: "",
-    phone: "",
-    imcNumber: "",
-    note: "",
-    reference: "",
-    address: "",
-    city: "",
-    state: "",
-    country: "",
-  });
+  const [formData, setFormData] = useState({ ...EMPTY_FORM });
+
+  // Track previous editUserId to detect transitions
+  const prevEditIdRef = useRef<string | null>(null);
 
   // ============================================
-  // Load user into edit mode when ?edit=... present
+  // Auto-generate preview reg no for new registrations
+  // ============================================
+  const generateRegistrationNoPreview = () => {
+    const spotUsers = users.filter((u) => u.registrationNo.startsWith("SPOT-"));
+    const maxNum = spotUsers.reduce((max, u) => {
+      const num = parseInt(u.registrationNo.replace("SPOT-", ""), 10);
+      return isNaN(num) ? max : Math.max(max, num);
+    }, 0);
+    const nextNum = (maxNum + 1).toString().padStart(4, "0");
+    setFormData((prev) => ({ ...prev, registrationNo: `SPOT-${nextNum}` }));
+  };
+
+  // ============================================
+  // Handle URL transitions: enter/leave edit mode, and normal mode init
   // ============================================
   useEffect(() => {
-    if (editUserId) {
+    const prevId = prevEditIdRef.current;
+    prevEditIdRef.current = editUserId;
+
+    // Entering edit mode (was null, now has ID)
+    if (editUserId && !prevId) {
       const user = users.find((u) => u.id === editUserId);
       if (user) {
         setIsEditMode(true);
@@ -153,34 +179,40 @@ export function SpotRegistration({
         });
         router.replace(`/events/${eventId}/dashboard/spot-registration`);
       }
-    } else {
+      return;
+    }
+
+    // Leaving edit mode (had ID, now null) → reset completely
+    if (!editUserId && prevId) {
+      setIsEditMode(false);
+      setEditingUser(null);
+      setFormData({ ...EMPTY_FORM });
+      setTimeout(() => generateRegistrationNoPreview(), 50);
+      return;
+    }
+
+    // Normal mount in add mode
+    if (!editUserId && !prevId) {
       setIsEditMode(false);
       setEditingUser(null);
       generateRegistrationNoPreview();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editUserId, users]);
+  }, [editUserId, eventId]);
 
   // ============================================
-  // Auto-generate preview reg no (add mode only)
+  // Refresh the preview reg no when users list changes (add mode only)
   // ============================================
   useEffect(() => {
-    if (!editUserId) {
+    if (!editUserId && !isEditMode) {
       generateRegistrationNoPreview();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users, editUserId]);
+  }, [users]);
 
-  const generateRegistrationNoPreview = () => {
-    const spotUsers = users.filter((u) => u.registrationNo.startsWith("SPOT-"));
-    const maxNum = spotUsers.reduce((max, u) => {
-      const num = parseInt(u.registrationNo.replace("SPOT-", ""), 10);
-      return isNaN(num) ? max : Math.max(max, num);
-    }, 0);
-    const nextNum = (maxNum + 1).toString().padStart(4, "0");
-    setFormData((prev) => ({ ...prev, registrationNo: `SPOT-${nextNum}` }));
-  };
-
+  // ============================================
+  // Existing user search
+  // ============================================
   const searchResults = searchQuery
     ? users.filter((u) => {
         const search = searchQuery.toLowerCase();
@@ -205,96 +237,118 @@ export function SpotRegistration({
     return true;
   };
 
-  const resetForm = () => {
-    const currentUserType = formData.userTypeId;
-    setFormData({
-      registrationNo: "",
-      userTypeId: currentUserType,
-      email: "",
-      fullName: "",
-      phone: "",
-      imcNumber: "",
-      note: "",
-      reference: "",
-      address: "",
-      city: "",
-      state: "",
-      country: "",
-    });
+  // ============================================
+  // Reset form to add-mode defaults
+  // ============================================
+  const resetToAddMode = () => {
+    setFormData({ ...EMPTY_FORM });
     setIsEditMode(false);
     setEditingUser(null);
+    // Remove ?edit=... from URL
     router.replace(`/events/${eventId}/dashboard/spot-registration`);
-    setTimeout(() => generateRegistrationNoPreview(), 100);
+    // Regenerate preview on next tick
+    setTimeout(() => generateRegistrationNoPreview(), 50);
   };
 
-  const handleSaveEdit = () => {
+  // ============================================
+  // Save edit
+  // ============================================
+  const handleSaveEdit = async () => {
     if (!validateForm() || !editingUser || !onEditUser) return;
 
-    const { registrationNo, ...rest } = formData;
-    onEditUser(editingUser.id, rest, []);
+    setIsSubmitting(true);
+    try {
+      const { registrationNo, ...rest } = formData;
+      await onEditUser(editingUser.id, rest, []);
 
-    toast({
-      title: "Updated Successfully",
-      description: `${formData.fullName}'s details have been updated.`,
-    });
+      toast({
+        title: "Updated Successfully",
+        description: `${formData.fullName}'s details have been updated.`,
+      });
 
-    setIsEditMode(false);
-    setEditingUser(null);
-    router.replace(`/events/${eventId}/dashboard/spot-registration`);
+      // Clear form and exit edit mode
+      resetToAddMode();
+    } catch {
+      // Error already toasted by parent
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleRegisterAndPrint = () => {
+  // ============================================
+  // Register (new user)
+  // ============================================
+  const handleRegisterAndPrint = async () => {
     if (!validateForm()) return;
 
-    const { registrationNo, ...rest } = formData;
-    onAddUser(rest as any, []);
+    setIsSubmitting(true);
+    try {
+      const { registrationNo, ...rest } = formData;
+      await onAddUser(rest as any, []);
 
-    const newUser: PrintUser = {
-      ...rest,
-      registrationNo: formData.registrationNo,
-      id: `temp_${Date.now()}`,
-      printed: false,
-      userTypeName:
-        userTypes.find((ut) => ut._id === formData.userTypeId)
-          ?.regDataTypeName || "",
-      permissions: [],
-    };
+      const newUser: PrintUser = {
+        ...rest,
+        registrationNo: formData.registrationNo,
+        id: `temp_${Date.now()}`,
+        printed: false,
+        userTypeName:
+          userTypes.find((ut) => ut._id === formData.userTypeId)
+            ?.regDataTypeName || "",
+        permissions: [],
+      };
 
-    setRecentUsers([newUser, ...recentUsers.slice(0, 9)]);
+      setRecentUsers([newUser, ...recentUsers.slice(0, 9)]);
 
-    toast({
-      title: "Registered Successfully",
-      description: `${formData.fullName} has been registered. Ready to print badge.`,
-    });
+      toast({
+        title: "Registered Successfully",
+        description: `${formData.fullName} has been registered. Ready to print badge.`,
+      });
 
-    resetForm();
+      // Clear the form but keep the same user type
+      const keepUserType = formData.userTypeId;
+      setFormData({ ...EMPTY_FORM, userTypeId: keepUserType });
+      setTimeout(() => generateRegistrationNoPreview(), 50);
+    } catch {
+      // Error already toasted by parent
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleRegisterOnly = () => {
+  const handleRegisterOnly = async () => {
     if (!validateForm()) return;
 
-    const { registrationNo, ...rest } = formData;
-    onAddUser(rest as any, []);
+    setIsSubmitting(true);
+    try {
+      const { registrationNo, ...rest } = formData;
+      await onAddUser(rest as any, []);
 
-    const newUser: PrintUser = {
-      ...rest,
-      registrationNo: formData.registrationNo,
-      id: `temp_${Date.now()}`,
-      printed: false,
-      userTypeName:
-        userTypes.find((ut) => ut._id === formData.userTypeId)
-          ?.regDataTypeName || "",
-      permissions: [],
-    };
+      const newUser: PrintUser = {
+        ...rest,
+        registrationNo: formData.registrationNo,
+        id: `temp_${Date.now()}`,
+        printed: false,
+        userTypeName:
+          userTypes.find((ut) => ut._id === formData.userTypeId)
+            ?.regDataTypeName || "",
+        permissions: [],
+      };
 
-    setRecentUsers([newUser, ...recentUsers.slice(0, 9)]);
+      setRecentUsers([newUser, ...recentUsers.slice(0, 9)]);
 
-    toast({
-      title: "Registered Successfully",
-      description: `${formData.fullName} has been registered.`,
-    });
+      toast({
+        title: "Registered Successfully",
+        description: `${formData.fullName} has been registered.`,
+      });
 
-    resetForm();
+      const keepUserType = formData.userTypeId;
+      setFormData({ ...EMPTY_FORM, userTypeId: keepUserType });
+      setTimeout(() => generateRegistrationNoPreview(), 50);
+    } catch {
+      // Error already toasted by parent
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleQuickPrint = (user: PrintUser) => {
@@ -307,7 +361,9 @@ export function SpotRegistration({
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+      {/* ============================================ */}
       {/* Edit Mode Banner */}
+      {/* ============================================ */}
       {isEditMode && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -319,7 +375,7 @@ export function SpotRegistration({
           <Button
             variant="ghost"
             size="sm"
-            onClick={resetForm}
+            onClick={resetToAddMode}
             className="text-blue-700 hover:text-blue-900 hover:bg-blue-100 h-8 flex-shrink-0"
           >
             <X className="w-4 h-4 mr-1" />
@@ -328,7 +384,9 @@ export function SpotRegistration({
         </div>
       )}
 
-      {/* Search Existing Users — hide in edit mode */}
+      {/* ============================================ */}
+      {/* Search Existing Users (add mode only) */}
+      {/* ============================================ */}
       {!isEditMode && (
         <Card>
           <CardHeader className="pb-3">
@@ -405,7 +463,9 @@ export function SpotRegistration({
         </Card>
       )}
 
+      {/* ============================================ */}
       {/* Registration / Edit Form */}
+      {/* ============================================ */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base sm:text-lg flex items-center gap-2">
@@ -652,15 +712,26 @@ export function SpotRegistration({
                 <Button
                   type="button"
                   onClick={handleSaveEdit}
+                  disabled={isSubmitting}
                   className="bg-blue-600 hover:bg-blue-700 text-white h-11 flex-1 order-1 sm:order-2"
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
+                  {isSubmitting ? (
+                    <>
+                      <Save className="w-4 h-4 mr-2 animate-pulse" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Changes
+                    </>
+                  )}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={resetForm}
+                  onClick={resetToAddMode}
+                  disabled={isSubmitting}
                   className="h-11 flex-1 order-2 sm:order-1"
                 >
                   <X className="w-4 h-4 mr-2" />
@@ -672,6 +743,7 @@ export function SpotRegistration({
                 <Button
                   type="button"
                   onClick={handleRegisterAndPrint}
+                  disabled={isSubmitting}
                   className="bg-orange-600 hover:bg-orange-700 text-white h-11 flex-1 order-1 sm:order-2"
                 >
                   <Printer className="w-4 h-4 mr-2" />
@@ -681,6 +753,7 @@ export function SpotRegistration({
                   type="button"
                   variant="outline"
                   onClick={handleRegisterOnly}
+                  disabled={isSubmitting}
                   className="h-11 flex-1 order-2 sm:order-1"
                 >
                   <Save className="w-4 h-4 mr-2" />
@@ -692,7 +765,9 @@ export function SpotRegistration({
         </CardContent>
       </Card>
 
-      {/* Recently Registered — hide in edit mode */}
+      {/* ============================================ */}
+      {/* Recently Registered (add mode only) */}
+      {/* ============================================ */}
       {!isEditMode && recentUsers.length > 0 && (
         <Card>
           <CardHeader className="pb-3">

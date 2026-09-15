@@ -2,11 +2,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams, useRouter, useParams } from "next/navigation";
 import {
   UserPlus,
   Search,
   CheckCircle,
-  XCircle as XCircleIcon,
   Printer,
   Save,
   User,
@@ -20,6 +20,9 @@ import {
   Building2,
   Globe,
   MapPinned,
+  Lock,
+  X,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,12 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import {
   Card,
   CardContent,
@@ -73,6 +70,11 @@ interface SpotRegistrationProps {
     user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
     userPermissions: CategoryPermission[],
   ) => void;
+  onEditUser?: (
+    id: string,
+    data: Partial<PrintUser>,
+    userPermissions: CategoryPermission[],
+  ) => void;
   onTogglePermission: (
     userTypeId: string,
     categoryId: string,
@@ -87,23 +89,23 @@ interface SpotRegistrationProps {
 export function SpotRegistration({
   users,
   userTypes,
-  categories,
-  categoryGroups,
-  permissions,
   onAddUser,
-  onTogglePermission,
-  onBulkAllowAll,
-  onBulkBlockAll,
+  onEditUser,
   onPrintBadge,
   loading = false,
 }: SpotRegistrationProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  const params = useParams();
+  const eventId = params.id as string;
+  const searchParams = useSearchParams();
+  const editUserId = searchParams.get("edit");
+
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingUser, setEditingUser] = useState<PrintUser | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [recentUsers, setRecentUsers] = useState<PrintUser[]>([]);
-  const [selectedUserTypeId, setSelectedUserTypeId] = useState("");
-  const [formPermissions, setFormPermissions] = useState<CategoryPermission[]>(
-    [],
-  );
 
   const [formData, setFormData] = useState({
     registrationNo: "",
@@ -120,13 +122,56 @@ export function SpotRegistration({
     country: "",
   });
 
-  // Auto-generate registration number
+  // ============================================
+  // Load user into edit mode when ?edit=... present
+  // ============================================
   useEffect(() => {
-    generateRegistrationNo();
+    if (editUserId) {
+      const user = users.find((u) => u.id === editUserId);
+      if (user) {
+        setIsEditMode(true);
+        setEditingUser(user);
+        setFormData({
+          registrationNo: user.registrationNo,
+          userTypeId: user.userTypeId,
+          email: user.email || "",
+          fullName: user.fullName || "",
+          phone: user.phone || "",
+          imcNumber: user.imcNumber || "",
+          note: user.note || "",
+          reference: user.reference || "",
+          address: (user as any).address || "",
+          city: (user as any).city || "",
+          state: (user as any).state || "",
+          country: (user as any).country || "",
+        });
+      } else {
+        toast({
+          title: "User not found",
+          description: "The user you're trying to edit doesn't exist.",
+          variant: "destructive",
+        });
+        router.replace(`/events/${eventId}/dashboard/spot-registration`);
+      }
+    } else {
+      setIsEditMode(false);
+      setEditingUser(null);
+      generateRegistrationNoPreview();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users]);
+  }, [editUserId, users]);
 
-  const generateRegistrationNo = () => {
+  // ============================================
+  // Auto-generate preview reg no (add mode only)
+  // ============================================
+  useEffect(() => {
+    if (!editUserId) {
+      generateRegistrationNoPreview();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, editUserId]);
+
+  const generateRegistrationNoPreview = () => {
     const spotUsers = users.filter((u) => u.registrationNo.startsWith("SPOT-"));
     const maxNum = spotUsers.reduce((max, u) => {
       const num = parseInt(u.registrationNo.replace("SPOT-", ""), 10);
@@ -135,21 +180,6 @@ export function SpotRegistration({
     const nextNum = (maxNum + 1).toString().padStart(4, "0");
     setFormData((prev) => ({ ...prev, registrationNo: `SPOT-${nextNum}` }));
   };
-
-  // Group categories by groupCategoryId
-  const groupedCategories = categories.reduce(
-    (acc, cat) => {
-      const group = cat.groupCategoryId || "Uncategorized";
-      if (!acc[group]) acc[group] = [];
-      acc[group].push(cat);
-      return acc;
-    },
-    {} as Record<string, Category[]>,
-  );
-
-  const getGroupName = (groupId: string) =>
-    categoryGroups.find((g) => g._id === groupId)?.groupCategoryName ||
-    "Uncategorized";
 
   const searchResults = searchQuery
     ? users.filter((u) => {
@@ -163,101 +193,15 @@ export function SpotRegistration({
       })
     : [];
 
-  const handleUserTypeChange = (value: string) => {
-    setSelectedUserTypeId(value);
-    setFormData({ ...formData, userTypeId: value });
-    // Load existing permissions for this user type
-    const userPermissions = permissions.filter((p) => p.userTypeId === value);
-    setFormPermissions(userPermissions);
-  };
-
-  const isPermissionAllowed = (userTypeId: string, categoryId: string) => {
-    return formPermissions.some(
-      (p) =>
-        p.userTypeId === userTypeId && p.categoryId === categoryId && p.allowed,
-    );
-  };
-
-  const handleTogglePermission = (categoryId: string) => {
-    if (!selectedUserTypeId) return;
-    const current = isPermissionAllowed(selectedUserTypeId, categoryId);
-    const newPermissions = current
-      ? formPermissions.filter(
-          (p) =>
-            !(
-              p.userTypeId === selectedUserTypeId && p.categoryId === categoryId
-            ),
-        )
-      : [
-          ...formPermissions,
-          { userTypeId: selectedUserTypeId, categoryId, allowed: true },
-        ];
-    setFormPermissions(newPermissions);
-    onTogglePermission(selectedUserTypeId, categoryId, !current);
-  };
-
-  const handleBulkAllow = (categoryIds: string[]) => {
-    if (!selectedUserTypeId) return;
-    const newPermissions = [...formPermissions];
-    categoryIds.forEach((catId) => {
-      const existing = newPermissions.find(
-        (p) => p.userTypeId === selectedUserTypeId && p.categoryId === catId,
-      );
-      if (existing) {
-        existing.allowed = true;
-      } else {
-        newPermissions.push({
-          userTypeId: selectedUserTypeId,
-          categoryId: catId,
-          allowed: true,
-        });
-      }
-    });
-    setFormPermissions(newPermissions);
-    onBulkAllowAll(selectedUserTypeId, categoryIds);
-  };
-
-  const handleBulkBlock = (categoryIds: string[]) => {
-    if (!selectedUserTypeId) return;
-    const newPermissions = formPermissions.filter(
-      (p) =>
-        !(
-          p.userTypeId === selectedUserTypeId &&
-          categoryIds.includes(p.categoryId)
-        ),
-    );
-    setFormPermissions(newPermissions);
-    onBulkBlockAll(selectedUserTypeId, categoryIds);
-  };
-
   const validateForm = (): boolean => {
-    if (
-      !formData.registrationNo ||
-      !formData.userTypeId ||
-      !formData.fullName
-    ) {
+    if (!formData.userTypeId || !formData.fullName) {
       toast({
         title: "Validation Error",
-        description: "Please fill in Registration No, User Type, and Full Name",
+        description: "Please fill in User Type and Full Name",
         variant: "destructive",
       });
       return false;
     }
-
-    const existing = users.find(
-      (u) =>
-        u.registrationNo.toLowerCase() ===
-        formData.registrationNo.toLowerCase(),
-    );
-    if (existing) {
-      toast({
-        title: "Duplicate Registration",
-        description: `Registration number ${formData.registrationNo} already exists`,
-        variant: "destructive",
-      });
-      return false;
-    }
-
     return true;
   };
 
@@ -277,23 +221,43 @@ export function SpotRegistration({
       state: "",
       country: "",
     });
-    setSelectedUserTypeId(currentUserType);
-    setTimeout(() => generateRegistrationNo(), 100);
+    setIsEditMode(false);
+    setEditingUser(null);
+    router.replace(`/events/${eventId}/dashboard/spot-registration`);
+    setTimeout(() => generateRegistrationNoPreview(), 100);
+  };
+
+  const handleSaveEdit = () => {
+    if (!validateForm() || !editingUser || !onEditUser) return;
+
+    const { registrationNo, ...rest } = formData;
+    onEditUser(editingUser.id, rest, []);
+
+    toast({
+      title: "Updated Successfully",
+      description: `${formData.fullName}'s details have been updated.`,
+    });
+
+    setIsEditMode(false);
+    setEditingUser(null);
+    router.replace(`/events/${eventId}/dashboard/spot-registration`);
   };
 
   const handleRegisterAndPrint = () => {
     if (!validateForm()) return;
 
-    onAddUser(formData, formPermissions);
+    const { registrationNo, ...rest } = formData;
+    onAddUser(rest as any, []);
 
     const newUser: PrintUser = {
-      ...formData,
+      ...rest,
+      registrationNo: formData.registrationNo,
       id: `temp_${Date.now()}`,
       printed: false,
       userTypeName:
         userTypes.find((ut) => ut._id === formData.userTypeId)
           ?.regDataTypeName || "",
-      permissions: formPermissions,
+      permissions: [],
     };
 
     setRecentUsers([newUser, ...recentUsers.slice(0, 9)]);
@@ -309,16 +273,18 @@ export function SpotRegistration({
   const handleRegisterOnly = () => {
     if (!validateForm()) return;
 
-    onAddUser(formData, formPermissions);
+    const { registrationNo, ...rest } = formData;
+    onAddUser(rest as any, []);
 
     const newUser: PrintUser = {
-      ...formData,
+      ...rest,
+      registrationNo: formData.registrationNo,
       id: `temp_${Date.now()}`,
       printed: false,
       userTypeName:
         userTypes.find((ut) => ut._id === formData.userTypeId)
           ?.regDataTypeName || "",
-      permissions: formPermissions,
+      permissions: [],
     };
 
     setRecentUsers([newUser, ...recentUsers.slice(0, 9)]);
@@ -341,112 +307,150 @@ export function SpotRegistration({
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      {/* ============================================ */}
-      {/* Search Existing Users */}
-      {/* ============================================ */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-            <Search className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
-            Search Existing User
-          </CardTitle>
-          <CardDescription className="text-xs sm:text-sm">
-            Check if the person is already registered before adding
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by Reg No, Email, Name, or Phone..."
-              className="pl-10 h-11"
-            />
+      {/* Edit Mode Banner */}
+      {isEditMode && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Edit3 className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            <span className="text-sm text-blue-800 truncate">
+              Editing <strong>{editingUser?.fullName}</strong>
+            </span>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetForm}
+            className="text-blue-700 hover:text-blue-900 hover:bg-blue-100 h-8 flex-shrink-0"
+          >
+            <X className="w-4 h-4 mr-1" />
+            Cancel Edit
+          </Button>
+        </div>
+      )}
 
-          {searchQuery && (
-            <div className="mt-3 border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
-              {searchResults.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-neutral-50">
-                      <TableHead className="text-xs">Reg No</TableHead>
-                      <TableHead className="text-xs">Name</TableHead>
-                      <TableHead className="text-xs">Type</TableHead>
-                      <TableHead className="text-xs text-right">
-                        Action
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {searchResults.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium text-xs">
-                          {user.registrationNo}
-                        </TableCell>
-                        <TableCell className="text-xs truncate max-w-[150px]">
-                          {user.fullName}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[10px]">
-                            {user.userTypeName}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            onClick={() => handleQuickPrint(user)}
-                          >
-                            <Printer className="w-3 h-3 mr-1" />
-                            Print
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="p-4 text-center text-sm text-neutral-500">
-                  No users found. Continue below to register new user.
-                </div>
-              )}
+      {/* Search Existing Users — hide in edit mode */}
+      {!isEditMode && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+              <Search className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
+              Search Existing User
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              Check if the person is already registered before adding
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by Reg No, Email, Name, or Phone..."
+                className="pl-10 h-11"
+              />
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* ============================================ */}
-      {/* Registration Form */}
-      {/* ============================================ */}
+            {searchQuery && (
+              <div className="mt-3 border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                {searchResults.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-neutral-50">
+                        <TableHead className="text-xs">Reg No</TableHead>
+                        <TableHead className="text-xs">Name</TableHead>
+                        <TableHead className="text-xs">Type</TableHead>
+                        <TableHead className="text-xs text-right">
+                          Action
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {searchResults.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium text-xs">
+                            {user.registrationNo}
+                          </TableCell>
+                          <TableCell className="text-xs truncate max-w-[150px]">
+                            {user.fullName}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px]">
+                              {user.userTypeName}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => handleQuickPrint(user)}
+                            >
+                              <Printer className="w-3 h-3 mr-1" />
+                              Print
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="p-4 text-center text-sm text-neutral-500">
+                    No users found. Continue below to register new user.
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Registration / Edit Form */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-            <UserPlus className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
-            New Spot Registration
+            {isEditMode ? (
+              <>
+                <Edit3 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                Edit User
+              </>
+            ) : (
+              <>
+                <UserPlus className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
+                New Spot Registration
+              </>
+            )}
           </CardTitle>
           <CardDescription className="text-xs sm:text-sm">
-            Register a new attendee on the spot
+            {isEditMode
+              ? "Update the user's information below"
+              : "Register a new attendee on the spot"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Row 1: Reg No + User Type */}
+          {/* Row 1: Reg No (readonly) + User Type */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label className="text-sm flex items-center gap-2">
                 <CreditCard className="w-3.5 h-3.5 text-neutral-400" />
-                Registration No *
+                Registration No
+                <span className="text-[10px] text-neutral-400 font-normal inline-flex items-center gap-1 ml-auto">
+                  <Lock className="w-3 h-3" />
+                  {isEditMode ? "Locked" : "Auto-generated"}
+                </span>
               </Label>
               <Input
                 value={formData.registrationNo}
-                onChange={(e) =>
-                  setFormData({ ...formData, registrationNo: e.target.value })
-                }
-                placeholder="SPOT-0001"
-                className="h-11 font-mono"
+                readOnly
+                disabled
+                className="h-11 font-mono bg-neutral-100 text-neutral-500 cursor-not-allowed"
               />
+              {!isEditMode && (
+                <p className="text-[10px] text-neutral-400">
+                  Preview only — the final registration number is assigned by
+                  the server
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label className="text-sm flex items-center gap-2">
@@ -455,7 +459,9 @@ export function SpotRegistration({
               </Label>
               <Select
                 value={formData.userTypeId}
-                onValueChange={handleUserTypeChange}
+                onValueChange={(v) =>
+                  setFormData({ ...formData, userTypeId: v })
+                }
               >
                 <SelectTrigger className="h-11">
                   <SelectValue placeholder="Select user type" />
@@ -474,6 +480,11 @@ export function SpotRegistration({
                   )}
                 </SelectContent>
               </Select>
+              {!isEditMode && (
+                <p className="text-[10px] text-neutral-400">
+                  Permissions are automatically applied based on this user type
+                </p>
+              )}
             </div>
           </div>
 
@@ -538,9 +549,7 @@ export function SpotRegistration({
             </div>
           </div>
 
-          {/* ============================================ */}
-          {/* NEW: Address Information (Optional) */}
-          {/* ============================================ */}
+          {/* Address Information */}
           <div className="border-t pt-4">
             <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">
               Address Information (Optional)
@@ -636,159 +645,55 @@ export function SpotRegistration({
             </div>
           </div>
 
-          {/* ============================================ */}
-          {/* Category Permissions */}
-          {/* ============================================ */}
-          {selectedUserTypeId && (
-            <div className="border-t pt-4 mt-2">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-                <h3 className="font-semibold text-sm text-neutral-900">
-                  Category Permissions
-                </h3>
-                <span className="text-[10px] sm:text-xs text-neutral-500">
-                  ✔ = allow, empty = block
-                </span>
-              </div>
-
-              {categories.length === 0 ? (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                  ⚠️ No categories yet. Create categories in the{" "}
-                  <strong>Category</strong> tab first to manage permissions.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {Object.entries(groupedCategories).map(
-                    ([groupId, groupCats]) => (
-                      <div
-                        key={groupId}
-                        className="border rounded-lg overflow-hidden"
-                      >
-                        <Accordion
-                          type="single"
-                          collapsible
-                          defaultValue={groupId}
-                        >
-                          <AccordionItem value={groupId} className="border-0">
-                            <div className="flex items-center justify-between p-2.5 bg-neutral-50">
-                              <AccordionTrigger className="hover:no-underline py-0 flex-1 text-left">
-                                <h4 className="font-medium text-xs sm:text-sm text-neutral-800">
-                                  {getGroupName(groupId)}
-                                </h4>
-                              </AccordionTrigger>
-                              <div className="flex gap-1.5 flex-shrink-0 ml-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-green-600 text-[10px] h-7 px-2"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleBulkAllow(
-                                      groupCats.map((c) => c._id),
-                                    );
-                                  }}
-                                >
-                                  Allow all
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-red-600 text-[10px] h-7 px-2"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleBulkBlock(
-                                      groupCats.map((c) => c._id),
-                                    );
-                                  }}
-                                >
-                                  Block all
-                                </Button>
-                              </div>
-                            </div>
-                            <AccordionContent className="pt-2 pb-0">
-                              <div className="space-y-1 p-2">
-                                {groupCats.map((cat) => {
-                                  const allowed = isPermissionAllowed(
-                                    selectedUserTypeId,
-                                    cat._id,
-                                  );
-                                  return (
-                                    <div
-                                      key={cat._id}
-                                      className="flex items-center justify-between py-1.5 px-2 hover:bg-neutral-50 rounded gap-2"
-                                    >
-                                      <span className="text-xs sm:text-sm text-neutral-700 flex-1 min-w-0 truncate">
-                                        {cat.categoryName}
-                                      </span>
-                                      <Button
-                                        size="sm"
-                                        variant={
-                                          allowed ? "default" : "outline"
-                                        }
-                                        className={`w-[72px] sm:w-20 h-7 text-[10px] sm:text-xs flex-shrink-0 ${
-                                          allowed
-                                            ? "bg-green-600 hover:bg-green-700"
-                                            : ""
-                                        }`}
-                                        onClick={() =>
-                                          handleTogglePermission(cat._id)
-                                        }
-                                      >
-                                        {allowed ? (
-                                          <>
-                                            <CheckCircle className="w-3 h-3 mr-0.5" />
-                                            Allow
-                                          </>
-                                        ) : (
-                                          <>
-                                            <XCircleIcon className="w-3 h-3 mr-0.5" />
-                                            Block
-                                          </>
-                                        )}
-                                      </Button>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-                      </div>
-                    ),
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ============================================ */}
           {/* Action Buttons */}
-          {/* ============================================ */}
           <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
-            <Button
-              type="button"
-              onClick={handleRegisterAndPrint}
-              className="bg-orange-600 hover:bg-orange-700 text-white h-11 flex-1 order-1 sm:order-2"
-            >
-              <Printer className="w-4 h-4 mr-2" />
-              Register & Print Badge
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleRegisterOnly}
-              className="h-11 flex-1 order-2 sm:order-1"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Register Only
-            </Button>
+            {isEditMode ? (
+              <>
+                <Button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  className="bg-blue-600 hover:bg-blue-700 text-white h-11 flex-1 order-1 sm:order-2"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Changes
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={resetForm}
+                  className="h-11 flex-1 order-2 sm:order-1"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  onClick={handleRegisterAndPrint}
+                  className="bg-orange-600 hover:bg-orange-700 text-white h-11 flex-1 order-1 sm:order-2"
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Register & Print Badge
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRegisterOnly}
+                  className="h-11 flex-1 order-2 sm:order-1"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Register Only
+                </Button>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* ============================================ */}
-      {/* Recently Registered */}
-      {/* ============================================ */}
-      {recentUsers.length > 0 && (
+      {/* Recently Registered — hide in edit mode */}
+      {!isEditMode && recentUsers.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base sm:text-lg">

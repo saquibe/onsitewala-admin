@@ -12,19 +12,11 @@ export default function PrintPage() {
       <PrintCenter
         users={data.printUsers}
         userTypes={data.userTypes}
-        categories={data.categories}
-        categoryGroups={data.categoryGroups}
-        permissions={data.permissions}
-        onAddUser={data.addUser}
-        onEditUser={data.editUser}
-        onDeleteUser={data.deleteUser}
         onPrintBadge={data.printBadge}
         onBulkPrint={data.bulkPrint}
         onImportCSV={async () => {}}
         onExportCSV={() => {}}
-        onTogglePermission={data.togglePermission}
-        onBulkAllowAll={data.bulkAllowAll}
-        onBulkBlockAll={data.bulkBlockAll}
+        loading={data.loadingUserTypes}
       />
     </div>
   );

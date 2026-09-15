@@ -9,20 +9,24 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import { categoriesApi, groupCategoriesApi, regDataTypesApi } from "@/lib/api";
+import {
+  categoriesApi,
+  groupCategoriesApi,
+  regDataTypesApi,
+  privilegesApi,
+} from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import type {
-  UserType,
+  RegDataType,
   CategoryGroup,
   Category,
   CategoryPermission,
   PrintUser,
   ScanUser,
-  RegDataType,
 } from "@/components/events/types";
 
 interface DataContextType {
-  userTypes: UserType[];
+  userTypes: RegDataType[];
   categoryGroups: CategoryGroup[];
   categories: Category[];
   permissions: CategoryPermission[];
@@ -31,6 +35,7 @@ interface DataContextType {
   loadingCategories: boolean;
   loadingGroups: boolean;
   loadingUserTypes: boolean;
+  loadingPermissions: boolean;
 
   addUserType: (name: string) => Promise<void>;
   updateUserType: (id: string, name: string) => Promise<void>;
@@ -53,9 +58,9 @@ interface DataContextType {
     userTypeId: string,
     categoryId: string,
     allowed: boolean,
-  ) => void;
-  bulkAllowAll: (userTypeId: string) => void;
-  bulkBlockAll: (userTypeId: string) => void;
+  ) => Promise<void>;
+  bulkAllowAll: (userTypeId: string) => Promise<void>;
+  bulkBlockAll: (userTypeId: string) => Promise<void>;
 
   addUser: (
     user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
@@ -86,17 +91,52 @@ export function useDashboardData() {
   return ctx;
 }
 
-// ============================================
-// Adapter: RegDataType (backend) → UserType (UI)
-// ============================================
-const regDataTypeToUserType = (r: RegDataType): UserType => ({
-  _id: r._id,
-  eventId: r.eventId,
-  userTypeName: r.regDataTypeName,
-  regDataTypeName: r.regDataTypeName,
-  createdAt: r.createdAt,
-  updatedAt: r.updatedAt,
-});
+// Add a MOCK_PRINT_USERS constant
+const MOCK_PRINT_USERS: PrintUser[] = [
+  {
+    id: "mock_1",
+    registrationNo: "SPOT-0041",
+    userTypeId: "ut_1",
+    userTypeName: "Delegate",
+    email: "saivardhan@example.com",
+    fullName: "Dr. Saivardhan Reddy",
+    phone: "+91 9876543210",
+    imcNumber: "IMC001",
+    printed: false,
+  },
+  {
+    id: "mock_2",
+    registrationNo: "SPOT-0040",
+    userTypeId: "ut_2",
+    userTypeName: "Faculty",
+    email: "poorna@example.com",
+    fullName: "Dr. Poorna Royal",
+    phone: "+91 9876543211",
+    imcNumber: "IMC002",
+    printed: true,
+  },
+  {
+    id: "mock_3",
+    registrationNo: "SPOT-0039",
+    userTypeId: "ut_1",
+    userTypeName: "Delegate",
+    email: "sindhu@example.com",
+    fullName: "Dr. Sambaraju Sindhu",
+    phone: "+91 9876543212",
+    printed: false,
+  },
+  {
+    id: "mock_4",
+    registrationNo: "SPOT-0038",
+    userTypeId: "ut_3",
+    userTypeName: "Student",
+    email: "sujala@example.com",
+    fullName: "Dr. Sai Sujala Neela",
+    phone: "+91 9876543213",
+    imcNumber: "IMC004",
+    printed: false,
+  },
+];
 
 export function DashboardDataProvider({
   eventId,
@@ -107,18 +147,19 @@ export function DashboardDataProvider({
 }) {
   const { toast } = useToast();
 
-  const [userTypes, setUserTypes] = useState<UserType[]>([]);
+  const [userTypes, setUserTypes] = useState<RegDataType[]>([]);
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [permissions, setPermissions] = useState<CategoryPermission[]>([]);
-  const [printUsers, setPrintUsers] = useState<PrintUser[]>([]);
+  const [printUsers, setPrintUsers] = useState<PrintUser[]>(MOCK_PRINT_USERS);
   const [scanUsers, setScanUsers] = useState<ScanUser[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [loadingUserTypes, setLoadingUserTypes] = useState(false);
+  const [loadingPermissions, setLoadingPermissions] = useState(false);
 
   // ============================================
-  // Load user types (from reg-data-types endpoint)
+  // Load user types
   // ============================================
   const loadUserTypes = useCallback(async () => {
     setLoadingUserTypes(true);
@@ -126,8 +167,7 @@ export function DashboardDataProvider({
       const data = await regDataTypesApi.getRegDataTypes(eventId, {
         limit: 100,
       });
-      console.log("🔵 loaded user types:", data.length, data);
-      setUserTypes((data || []).map((item) => regDataTypeToUserType(item)));
+      setUserTypes(data || []);
     } catch (e: any) {
       toast({
         title: "Error",
@@ -159,7 +199,7 @@ export function DashboardDataProvider({
   }, [eventId, toast]);
 
   // ============================================
-  // Load category groups
+  // Load groups
   // ============================================
   const loadGroups = useCallback(async () => {
     setLoadingGroups(true);
@@ -179,15 +219,45 @@ export function DashboardDataProvider({
     }
   }, [eventId, toast]);
 
-  // Single mount effect that loads everything
+  // ============================================
+  // Load permissions (from privilege matrix)
+  // ============================================
+  const loadPermissions = useCallback(async () => {
+    setLoadingPermissions(true);
+    try {
+      const matrix = await privilegesApi.getPrivilegeMatrix(eventId);
+
+      // Convert privileges to the UI CategoryPermission shape
+      const perms: CategoryPermission[] = (matrix.privileges || []).map(
+        (p) => ({
+          userTypeId: p.regDataTypeId, // UI field name
+          categoryId: p.categoryId,
+          allowed: p.isAllowed, // UI field name
+        }),
+      );
+
+      setPermissions(perms);
+    } catch (e: any) {
+      // Silent fail on matrix — it's ok if no privileges exist yet
+      console.warn("Failed to load privilege matrix:", e);
+      setPermissions([]);
+    } finally {
+      setLoadingPermissions(false);
+    }
+  }, [eventId]);
+
+  // ============================================
+  // Single mount effect
+  // ============================================
   useEffect(() => {
     loadUserTypes();
     loadCategories();
     loadGroups();
-  }, [loadUserTypes, loadCategories, loadGroups]);
+    loadPermissions();
+  }, [loadUserTypes, loadCategories, loadGroups, loadPermissions]);
 
   // ============================================
-  // User Type handlers (API-backed via reg-data-types)
+  // User Type handlers
   // ============================================
   const addUserType = async (name: string) => {
     try {
@@ -197,9 +267,16 @@ export function DashboardDataProvider({
       await loadUserTypes();
       toast({ title: "Success", description: "User type added successfully" });
     } catch (e: any) {
+      const backendMessage =
+        e.response?.data?.message || e.message || "Failed to add user type";
+      const isDuplicate =
+        backendMessage.toLowerCase().includes("already exists") ||
+        e.response?.status === 409;
       toast({
-        title: "Error",
-        description: e.message || "Failed to add user type",
+        title: isDuplicate ? "Already Exists" : "Error",
+        description: isDuplicate
+          ? `"${name}" is already a user type. Please use a different name.`
+          : backendMessage,
         variant: "destructive",
       });
       throw e;
@@ -211,17 +288,22 @@ export function DashboardDataProvider({
       const updated = await regDataTypesApi.updateRegDataType(eventId, id, {
         regDataTypeName: name,
       });
-      setUserTypes((prev) =>
-        prev.map((ut) => (ut._id === id ? regDataTypeToUserType(updated) : ut)),
-      );
+      setUserTypes((prev) => prev.map((ut) => (ut._id === id ? updated : ut)));
       toast({
         title: "Success",
         description: "User type updated successfully",
       });
     } catch (e: any) {
+      const backendMessage =
+        e.response?.data?.message || e.message || "Failed to update user type";
+      const isDuplicate =
+        backendMessage.toLowerCase().includes("already exists") ||
+        e.response?.status === 409;
       toast({
-        title: "Error",
-        description: e.message || "Failed to update user type",
+        title: isDuplicate ? "Already Exists" : "Error",
+        description: isDuplicate
+          ? `"${name}" is already a user type. Please use a different name.`
+          : backendMessage,
         variant: "destructive",
       });
       throw e;
@@ -247,7 +329,7 @@ export function DashboardDataProvider({
   };
 
   // ============================================
-  // Category Group handlers (API-backed)
+  // Category Group handlers
   // ============================================
   const addCategoryGroup = async (
     group: Omit<CategoryGroup, "_id" | "eventId">,
@@ -321,7 +403,7 @@ export function DashboardDataProvider({
   };
 
   // ============================================
-  // Category handlers (API-backed)
+  // Category handlers
   // ============================================
   const addCategory = async (category: Omit<Category, "_id" | "eventId">) => {
     try {
@@ -336,10 +418,7 @@ export function DashboardDataProvider({
         time: category.time,
       });
       setCategories((prev) => [...prev, created]);
-      toast({
-        title: "Success",
-        description: "Category added successfully",
-      });
+      toast({ title: "Success", description: "Category added successfully" });
     } catch (e: any) {
       toast({
         title: "Error",
@@ -363,10 +442,7 @@ export function DashboardDataProvider({
         time: data.time,
       });
       setCategories((prev) => prev.map((c) => (c._id === id ? updated : c)));
-      toast({
-        title: "Success",
-        description: "Category updated successfully",
-      });
+      toast({ title: "Success", description: "Category updated successfully" });
     } catch (e: any) {
       toast({
         title: "Error",
@@ -381,10 +457,7 @@ export function DashboardDataProvider({
     try {
       await categoriesApi.deleteCategory(eventId, id);
       setCategories((prev) => prev.filter((c) => c._id !== id));
-      toast({
-        title: "Success",
-        description: "Category deleted successfully",
-      });
+      toast({ title: "Success", description: "Category deleted successfully" });
     } catch (e: any) {
       toast({
         title: "Error",
@@ -396,13 +469,14 @@ export function DashboardDataProvider({
   };
 
   // ============================================
-  // Permission handlers (local state)
+  // Permission handlers — API-backed via privileges
   // ============================================
-  const togglePermission = (
+  const togglePermission = async (
     userTypeId: string,
     categoryId: string,
     allowed: boolean,
   ) => {
+    // Optimistic update
     setPermissions((prev) => {
       const existing = prev.find(
         (p) => p.userTypeId === userTypeId && p.categoryId === categoryId,
@@ -416,9 +490,55 @@ export function DashboardDataProvider({
       }
       return [...prev, { userTypeId, categoryId, allowed }];
     });
+
+    try {
+      // Try to create the privilege — if it exists, backend returns 409
+      // In that case, we need to find the existing privilege and PATCH it
+      try {
+        await privilegesApi.createPrivilege(eventId, {
+          regDataTypeId: userTypeId,
+          categoryId,
+          isAllowed: allowed,
+        });
+      } catch (e: any) {
+        // If it's a 409 (duplicate), find the privilege and update it
+        if (e.response?.status === 409) {
+          const all = await privilegesApi.getPrivileges(eventId, {
+            limit: 1000,
+          });
+          const existing = all.find(
+            (p) =>
+              p.regDataTypeId === userTypeId && p.categoryId === categoryId,
+          );
+          if (existing) {
+            await privilegesApi.updatePrivilege(eventId, existing._id, {
+              isAllowed: allowed,
+            });
+          }
+        } else {
+          throw e;
+        }
+      }
+    } catch (e: any) {
+      // Revert on error
+      setPermissions((prev) =>
+        prev.map((p) =>
+          p.userTypeId === userTypeId && p.categoryId === categoryId
+            ? { ...p, allowed: !allowed }
+            : p,
+        ),
+      );
+      toast({
+        title: "Error",
+        description: e.message || "Failed to update permission",
+        variant: "destructive",
+      });
+      throw e;
+    }
   };
 
-  const bulkAllowAll = (userTypeId: string) => {
+  const bulkAllowAll = async (userTypeId: string) => {
+    // Optimistic update
     const newPerms = categories.map((cat) => ({
       userTypeId,
       categoryId: cat._id,
@@ -428,9 +548,27 @@ export function DashboardDataProvider({
       ...prev.filter((p) => p.userTypeId !== userTypeId),
       ...newPerms,
     ]);
+
+    try {
+      await privilegesApi.allowAllCategories(eventId, userTypeId);
+      toast({
+        title: "Success",
+        description: "All categories allowed",
+      });
+    } catch (e: any) {
+      // Reload on error
+      await loadPermissions();
+      toast({
+        title: "Error",
+        description: e.message || "Failed to allow all",
+        variant: "destructive",
+      });
+      throw e;
+    }
   };
 
-  const bulkBlockAll = (userTypeId: string) => {
+  const bulkBlockAll = async (userTypeId: string) => {
+    // Optimistic update
     const newPerms = categories.map((cat) => ({
       userTypeId,
       categoryId: cat._id,
@@ -440,6 +578,22 @@ export function DashboardDataProvider({
       ...prev.filter((p) => p.userTypeId !== userTypeId),
       ...newPerms,
     ]);
+
+    try {
+      await privilegesApi.blockAllCategories(eventId, userTypeId);
+      toast({
+        title: "Success",
+        description: "All categories blocked",
+      });
+    } catch (e: any) {
+      await loadPermissions();
+      toast({
+        title: "Error",
+        description: e.message || "Failed to block all",
+        variant: "destructive",
+      });
+      throw e;
+    }
   };
 
   // ============================================
@@ -454,20 +608,11 @@ export function DashboardDataProvider({
       id: `user_${Date.now()}`,
       printed: false,
       userTypeName:
-        userTypes.find((ut) => ut._id === user.userTypeId)?.userTypeName || "",
+        userTypes.find((ut) => ut._id === user.userTypeId)?.regDataTypeName ||
+        "",
       permissions: userPerms,
     };
     setPrintUsers((prev) => [...prev, newUser]);
-
-    userPerms.forEach((p) => {
-      const existing = permissions.find(
-        (perm) =>
-          perm.userTypeId === p.userTypeId && perm.categoryId === p.categoryId,
-      );
-      if (!existing) {
-        setPermissions((prev) => [...prev, p]);
-      }
-    });
   };
 
   const editUser = (
@@ -506,7 +651,12 @@ export function DashboardDataProvider({
   };
 
   const refresh = async () => {
-    await Promise.all([loadUserTypes(), loadCategories(), loadGroups()]);
+    await Promise.all([
+      loadUserTypes(),
+      loadCategories(),
+      loadGroups(),
+      loadPermissions(),
+    ]);
   };
 
   return (
@@ -521,6 +671,7 @@ export function DashboardDataProvider({
         loadingCategories,
         loadingGroups,
         loadingUserTypes,
+        loadingPermissions,
         addUserType,
         updateUserType,
         deleteUserType,

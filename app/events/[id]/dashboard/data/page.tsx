@@ -6,12 +6,13 @@ import { useDashboardData } from "../_context/DataContext";
 
 export default function DataPage() {
   const data = useDashboardData();
+  const userTypes = (data.userTypes ?? []) as any;
 
   return (
     <div className="p-4 sm:p-6">
       <DataManagement
         users={data.printUsers}
-        userTypes={data.userTypes}
+        userTypes={userTypes}
         categories={data.categories}
         categoryGroups={data.categoryGroups}
         permissions={data.permissions}

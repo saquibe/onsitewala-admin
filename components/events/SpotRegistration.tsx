@@ -16,6 +16,10 @@ import {
   FileText,
   Tag,
   CreditCard,
+  MapPin,
+  Building2,
+  Globe,
+  MapPinned,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +57,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type {
   PrintUser,
-  UserType,
+  RegDataType,
   Category,
   CategoryGroup,
   CategoryPermission,
@@ -61,7 +65,7 @@ import type {
 
 interface SpotRegistrationProps {
   users: PrintUser[];
-  userTypes: UserType[];
+  userTypes: RegDataType[];
   categories: Category[];
   categoryGroups: CategoryGroup[];
   permissions: CategoryPermission[];
@@ -110,10 +114,16 @@ export function SpotRegistration({
     imcNumber: "",
     note: "",
     reference: "",
+    address: "",
+    city: "",
+    state: "",
+    country: "",
   });
 
+  // Auto-generate registration number
   useEffect(() => {
     generateRegistrationNo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
 
   const generateRegistrationNo = () => {
@@ -126,6 +136,7 @@ export function SpotRegistration({
     setFormData((prev) => ({ ...prev, registrationNo: `SPOT-${nextNum}` }));
   };
 
+  // Group categories by groupCategoryId
   const groupedCategories = categories.reduce(
     (acc, cat) => {
       const group = cat.groupCategoryId || "Uncategorized";
@@ -155,6 +166,7 @@ export function SpotRegistration({
   const handleUserTypeChange = (value: string) => {
     setSelectedUserTypeId(value);
     setFormData({ ...formData, userTypeId: value });
+    // Load existing permissions for this user type
     const userPermissions = permissions.filter((p) => p.userTypeId === value);
     setFormPermissions(userPermissions);
   };
@@ -218,7 +230,7 @@ export function SpotRegistration({
     onBulkBlockAll(selectedUserTypeId, categoryIds);
   };
 
-  const handleRegisterAndPrint = () => {
+  const validateForm = (): boolean => {
     if (
       !formData.registrationNo ||
       !formData.userTypeId ||
@@ -229,7 +241,7 @@ export function SpotRegistration({
         description: "Please fill in Registration No, User Type, and Full Name",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     const existing = users.find(
@@ -243,8 +255,34 @@ export function SpotRegistration({
         description: `Registration number ${formData.registrationNo} already exists`,
         variant: "destructive",
       });
-      return;
+      return false;
     }
+
+    return true;
+  };
+
+  const resetForm = () => {
+    const currentUserType = formData.userTypeId;
+    setFormData({
+      registrationNo: "",
+      userTypeId: currentUserType,
+      email: "",
+      fullName: "",
+      phone: "",
+      imcNumber: "",
+      note: "",
+      reference: "",
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+    });
+    setSelectedUserTypeId(currentUserType);
+    setTimeout(() => generateRegistrationNo(), 100);
+  };
+
+  const handleRegisterAndPrint = () => {
+    if (!validateForm()) return;
 
     onAddUser(formData, formPermissions);
 
@@ -253,8 +291,8 @@ export function SpotRegistration({
       id: `temp_${Date.now()}`,
       printed: false,
       userTypeName:
-        userTypes.find((ut) => ut._id === formData.userTypeId)?.userTypeName ||
-        "",
+        userTypes.find((ut) => ut._id === formData.userTypeId)
+          ?.regDataTypeName || "",
       permissions: formPermissions,
     };
 
@@ -265,48 +303,11 @@ export function SpotRegistration({
       description: `${formData.fullName} has been registered. Ready to print badge.`,
     });
 
-    const currentUserType = formData.userTypeId;
-    setFormData({
-      registrationNo: "",
-      userTypeId: currentUserType,
-      email: "",
-      fullName: "",
-      phone: "",
-      imcNumber: "",
-      note: "",
-      reference: "",
-    });
-    setSelectedUserTypeId(currentUserType);
-    setTimeout(() => generateRegistrationNo(), 100);
+    resetForm();
   };
 
   const handleRegisterOnly = () => {
-    if (
-      !formData.registrationNo ||
-      !formData.userTypeId ||
-      !formData.fullName
-    ) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in Registration No, User Type, and Full Name",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const existing = users.find(
-      (u) =>
-        u.registrationNo.toLowerCase() ===
-        formData.registrationNo.toLowerCase(),
-    );
-    if (existing) {
-      toast({
-        title: "Duplicate Registration",
-        description: `Registration number ${formData.registrationNo} already exists`,
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!validateForm()) return;
 
     onAddUser(formData, formPermissions);
 
@@ -315,8 +316,8 @@ export function SpotRegistration({
       id: `temp_${Date.now()}`,
       printed: false,
       userTypeName:
-        userTypes.find((ut) => ut._id === formData.userTypeId)?.userTypeName ||
-        "",
+        userTypes.find((ut) => ut._id === formData.userTypeId)
+          ?.regDataTypeName || "",
       permissions: formPermissions,
     };
 
@@ -327,19 +328,7 @@ export function SpotRegistration({
       description: `${formData.fullName} has been registered.`,
     });
 
-    const currentUserType = formData.userTypeId;
-    setFormData({
-      registrationNo: "",
-      userTypeId: currentUserType,
-      email: "",
-      fullName: "",
-      phone: "",
-      imcNumber: "",
-      note: "",
-      reference: "",
-    });
-    setSelectedUserTypeId(currentUserType);
-    setTimeout(() => generateRegistrationNo(), 100);
+    resetForm();
   };
 
   const handleQuickPrint = (user: PrintUser) => {
@@ -352,7 +341,9 @@ export function SpotRegistration({
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+      {/* ============================================ */}
       {/* Search Existing Users */}
+      {/* ============================================ */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base sm:text-lg flex items-center gap-2">
@@ -427,7 +418,9 @@ export function SpotRegistration({
         </CardContent>
       </Card>
 
+      {/* ============================================ */}
       {/* Registration Form */}
+      {/* ============================================ */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base sm:text-lg flex items-center gap-2">
@@ -439,6 +432,7 @@ export function SpotRegistration({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Row 1: Reg No + User Type */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label className="text-sm flex items-center gap-2">
@@ -467,16 +461,23 @@ export function SpotRegistration({
                   <SelectValue placeholder="Select user type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {userTypes.map((ut) => (
-                    <SelectItem key={ut._id} value={ut._id}>
-                      {ut.userTypeName}
-                    </SelectItem>
-                  ))}
+                  {userTypes.length === 0 ? (
+                    <div className="p-2 text-xs text-neutral-500 text-center">
+                      No user types available
+                    </div>
+                  ) : (
+                    userTypes.map((ut) => (
+                      <SelectItem key={ut._id} value={ut._id}>
+                        {ut.regDataTypeName}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
+          {/* Row 2: Personal Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label className="text-sm flex items-center gap-2">
@@ -535,34 +536,110 @@ export function SpotRegistration({
                 className="h-11"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-sm flex items-center gap-2">
-                <FileText className="w-3.5 h-3.5 text-neutral-400" />
-                Reference
-              </Label>
-              <Input
-                value={formData.reference}
-                onChange={(e) =>
-                  setFormData({ ...formData, reference: e.target.value })
-                }
-                placeholder="Reference"
-                className="h-11"
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label className="text-sm">Note</Label>
-              <Textarea
-                value={formData.note}
-                onChange={(e) =>
-                  setFormData({ ...formData, note: e.target.value })
-                }
-                placeholder="Additional notes..."
-                rows={2}
-              />
+          </div>
+
+          {/* ============================================ */}
+          {/* NEW: Address Information (Optional) */}
+          {/* ============================================ */}
+          <div className="border-t pt-4">
+            <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">
+              Address Information (Optional)
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-2 sm:col-span-2">
+                <Label className="text-sm flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-neutral-400" />
+                  Address
+                </Label>
+                <Textarea
+                  value={formData.address}
+                  onChange={(e) =>
+                    setFormData({ ...formData, address: e.target.value })
+                  }
+                  placeholder="Street address, apartment, etc."
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm flex items-center gap-2">
+                  <Building2 className="w-3.5 h-3.5 text-neutral-400" />
+                  City
+                </Label>
+                <Input
+                  value={formData.city}
+                  onChange={(e) =>
+                    setFormData({ ...formData, city: e.target.value })
+                  }
+                  placeholder="e.g. Mumbai"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm flex items-center gap-2">
+                  <MapPinned className="w-3.5 h-3.5 text-neutral-400" />
+                  State
+                </Label>
+                <Input
+                  value={formData.state}
+                  onChange={(e) =>
+                    setFormData({ ...formData, state: e.target.value })
+                  }
+                  placeholder="e.g. Maharashtra"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label className="text-sm flex items-center gap-2">
+                  <Globe className="w-3.5 h-3.5 text-neutral-400" />
+                  Country
+                </Label>
+                <Input
+                  value={formData.country}
+                  onChange={(e) =>
+                    setFormData({ ...formData, country: e.target.value })
+                  }
+                  placeholder="e.g. India"
+                  className="h-11"
+                />
+              </div>
             </div>
           </div>
 
-          {selectedUserTypeId && categories.length > 0 && (
+          {/* Additional Info */}
+          <div className="border-t pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5 text-neutral-400" />
+                  Reference
+                </Label>
+                <Input
+                  value={formData.reference}
+                  onChange={(e) =>
+                    setFormData({ ...formData, reference: e.target.value })
+                  }
+                  placeholder="Reference"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Note</Label>
+                <Input
+                  value={formData.note}
+                  onChange={(e) =>
+                    setFormData({ ...formData, note: e.target.value })
+                  }
+                  placeholder="Additional notes..."
+                  className="h-11"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* ============================================ */}
+          {/* Category Permissions */}
+          {/* ============================================ */}
+          {selectedUserTypeId && (
             <div className="border-t pt-4 mt-2">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
                 <h3 className="font-semibold text-sm text-neutral-900">
@@ -573,103 +650,119 @@ export function SpotRegistration({
                 </span>
               </div>
 
-              <div className="space-y-2">
-                {Object.entries(groupedCategories).map(
-                  ([groupId, groupCats]) => (
-                    <div
-                      key={groupId}
-                      className="border rounded-lg overflow-hidden"
-                    >
-                      <Accordion
-                        type="single"
-                        collapsible
-                        defaultValue={groupId}
+              {categories.length === 0 ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                  ⚠️ No categories yet. Create categories in the{" "}
+                  <strong>Category</strong> tab first to manage permissions.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {Object.entries(groupedCategories).map(
+                    ([groupId, groupCats]) => (
+                      <div
+                        key={groupId}
+                        className="border rounded-lg overflow-hidden"
                       >
-                        <AccordionItem value={groupId} className="border-0">
-                          <div className="flex items-center justify-between p-2.5 bg-neutral-50">
-                            <AccordionTrigger className="hover:no-underline py-0 flex-1 text-left">
-                              <h4 className="font-medium text-xs sm:text-sm text-neutral-800">
-                                {getGroupName(groupId)}
-                              </h4>
-                            </AccordionTrigger>
-                            <div className="flex gap-1.5 flex-shrink-0 ml-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-green-600 text-[10px] h-7 px-2"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleBulkAllow(groupCats.map((c) => c._id));
-                                }}
-                              >
-                                Allow all
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-red-600 text-[10px] h-7 px-2"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleBulkBlock(groupCats.map((c) => c._id));
-                                }}
-                              >
-                                Block all
-                              </Button>
+                        <Accordion
+                          type="single"
+                          collapsible
+                          defaultValue={groupId}
+                        >
+                          <AccordionItem value={groupId} className="border-0">
+                            <div className="flex items-center justify-between p-2.5 bg-neutral-50">
+                              <AccordionTrigger className="hover:no-underline py-0 flex-1 text-left">
+                                <h4 className="font-medium text-xs sm:text-sm text-neutral-800">
+                                  {getGroupName(groupId)}
+                                </h4>
+                              </AccordionTrigger>
+                              <div className="flex gap-1.5 flex-shrink-0 ml-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-green-600 text-[10px] h-7 px-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleBulkAllow(
+                                      groupCats.map((c) => c._id),
+                                    );
+                                  }}
+                                >
+                                  Allow all
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-red-600 text-[10px] h-7 px-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleBulkBlock(
+                                      groupCats.map((c) => c._id),
+                                    );
+                                  }}
+                                >
+                                  Block all
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          <AccordionContent className="pt-2 pb-0">
-                            <div className="space-y-1 p-2">
-                              {groupCats.map((cat) => {
-                                const allowed = isPermissionAllowed(
-                                  selectedUserTypeId,
-                                  cat._id,
-                                );
-                                return (
-                                  <div
-                                    key={cat._id}
-                                    className="flex items-center justify-between py-1.5 px-2 hover:bg-neutral-50 rounded gap-2"
-                                  >
-                                    <span className="text-xs sm:text-sm text-neutral-700 flex-1 min-w-0 truncate">
-                                      {cat.categoryName}
-                                    </span>
-                                    <Button
-                                      size="sm"
-                                      variant={allowed ? "default" : "outline"}
-                                      className={`w-[72px] sm:w-20 h-7 text-[10px] sm:text-xs flex-shrink-0 ${
-                                        allowed
-                                          ? "bg-green-600 hover:bg-green-700"
-                                          : ""
-                                      }`}
-                                      onClick={() =>
-                                        handleTogglePermission(cat._id)
-                                      }
+                            <AccordionContent className="pt-2 pb-0">
+                              <div className="space-y-1 p-2">
+                                {groupCats.map((cat) => {
+                                  const allowed = isPermissionAllowed(
+                                    selectedUserTypeId,
+                                    cat._id,
+                                  );
+                                  return (
+                                    <div
+                                      key={cat._id}
+                                      className="flex items-center justify-between py-1.5 px-2 hover:bg-neutral-50 rounded gap-2"
                                     >
-                                      {allowed ? (
-                                        <>
-                                          <CheckCircle className="w-3 h-3 mr-0.5" />
-                                          Allow
-                                        </>
-                                      ) : (
-                                        <>
-                                          <XCircleIcon className="w-3 h-3 mr-0.5" />
-                                          Block
-                                        </>
-                                      )}
-                                    </Button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </div>
-                  ),
-                )}
-              </div>
+                                      <span className="text-xs sm:text-sm text-neutral-700 flex-1 min-w-0 truncate">
+                                        {cat.categoryName}
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant={
+                                          allowed ? "default" : "outline"
+                                        }
+                                        className={`w-[72px] sm:w-20 h-7 text-[10px] sm:text-xs flex-shrink-0 ${
+                                          allowed
+                                            ? "bg-green-600 hover:bg-green-700"
+                                            : ""
+                                        }`}
+                                        onClick={() =>
+                                          handleTogglePermission(cat._id)
+                                        }
+                                      >
+                                        {allowed ? (
+                                          <>
+                                            <CheckCircle className="w-3 h-3 mr-0.5" />
+                                            Allow
+                                          </>
+                                        ) : (
+                                          <>
+                                            <XCircleIcon className="w-3 h-3 mr-0.5" />
+                                            Block
+                                          </>
+                                        )}
+                                      </Button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      </div>
+                    ),
+                  )}
+                </div>
+              )}
             </div>
           )}
 
+          {/* ============================================ */}
+          {/* Action Buttons */}
+          {/* ============================================ */}
           <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
             <Button
               type="button"
@@ -692,6 +785,9 @@ export function SpotRegistration({
         </CardContent>
       </Card>
 
+      {/* ============================================ */}
+      {/* Recently Registered */}
+      {/* ============================================ */}
       {recentUsers.length > 0 && (
         <Card>
           <CardHeader className="pb-3">

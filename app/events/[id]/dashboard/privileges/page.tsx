@@ -16,6 +16,7 @@ export default function PrivilegesPage() {
         onTogglePermission={data.togglePermission}
         onBulkAllowAll={data.bulkAllowAll}
         onBulkBlockAll={data.bulkBlockAll}
+        loading={data.loadingPermissions}
       />
     </div>
   );

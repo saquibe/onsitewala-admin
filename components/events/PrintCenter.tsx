@@ -50,18 +50,20 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type {
   PrintUser,
-  UserType,
+  RegDataType, // ← was UserType
   Category,
+  CategoryGroup, // ← use the proper type
   CategoryPermission,
 } from "./types";
 import { Textarea } from "../ui/textarea";
 import { Checkbox } from "../ui/checkbox";
+import { PrintPreviewDialog } from "./PrintPreviewDialog";
 
 interface PrintCenterProps {
   users: PrintUser[];
-  userTypes: UserType[];
+  userTypes: RegDataType[]; // ← RegDataType[]
   categories: Category[];
-  categoryGroups: { _id: string; groupCategoryName: string }[];
+  categoryGroups: CategoryGroup[]; // ← CategoryGroup[] not inline type
   permissions: CategoryPermission[];
   onAddUser: (
     user: Omit<PrintUser, "id" | "printed" | "userTypeName">,
@@ -112,6 +114,10 @@ export function PrintCenter({
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [editUser, setEditUser] = useState<PrintUser | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [printPreviewUser, setPrintPreviewUser] = useState<PrintUser | null>(
+    null,
+  );
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
   const [formData, setFormData] = useState({
     registrationNo: "",
     userTypeId: "",
@@ -384,7 +390,7 @@ export function PrintCenter({
             <SelectItem value="all">All user types</SelectItem>
             {userTypes.map((ut) => (
               <SelectItem key={ut._id} value={ut._id}>
-                {ut.userTypeName}
+                {ut.regDataTypeName}
               </SelectItem>
             ))}
           </SelectContent>
@@ -428,7 +434,7 @@ export function PrintCenter({
               <SelectItem value="all">All user types</SelectItem>
               {userTypes.map((ut) => (
                 <SelectItem key={ut._id} value={ut._id}>
-                  {ut.userTypeName}
+                  {ut.regDataTypeName}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -546,7 +552,10 @@ export function PrintCenter({
                             ? "bg-red-600 hover:bg-red-700 text-white"
                             : "bg-green-600 text-white hover:bg-green-700"
                         }
-                        onClick={() => onPrintBadge(user.id)}
+                        onClick={() => {
+                          setPrintPreviewUser(user);
+                          setPrintPreviewOpen(true);
+                        }}
                       >
                         <Printer className="w-3.5 h-3.5 mr-1" />
                         {user.printed ? "Reprint" : "Print"}
@@ -620,7 +629,10 @@ export function PrintCenter({
                         ? "bg-red-600 hover:bg-red-700 text-white"
                         : "bg-green-600 text-white hover:bg-green-700"
                     }`}
-                    onClick={() => onPrintBadge(user.id)}
+                    onClick={() => {
+                      setPrintPreviewUser(user);
+                      setPrintPreviewOpen(true);
+                    }}
                   >
                     <Printer className="w-3.5 h-3.5 mr-1" />
                     {user.printed ? "Reprint" : "Print"}
@@ -691,7 +703,7 @@ export function PrintCenter({
                   <SelectContent>
                     {userTypes.map((ut) => (
                       <SelectItem key={ut._id} value={ut._id}>
-                        {ut.userTypeName}
+                        {ut.regDataTypeName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -910,6 +922,20 @@ export function PrintCenter({
           </form>
         </SheetContent>
       </Sheet>
+
+      {/* Print Preview Dialog */}
+      <PrintPreviewDialog
+        open={printPreviewOpen}
+        onOpenChange={setPrintPreviewOpen}
+        user={printPreviewUser}
+        onConfirmPrint={(userId) => {
+          onPrintBadge(userId);
+          toast({
+            title: "Sent to printer",
+            description: `Badge sent for ${printPreviewUser?.fullName}`,
+          });
+        }}
+      />
     </div>
   );
 }

@@ -28,12 +28,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ScanCategory, ScanUser, UserType } from "./types";
+import type { ScanCategory, ScanUser, RegDataType } from "./types";
 
 interface ScanCenterProps {
   categories: ScanCategory[];
   users: ScanUser[];
-  userTypes: UserType[];
+  userTypes: RegDataType[]; // ← RegDataType[]
   onScanUser: (userId: string, categoryId: string) => void;
   loading?: boolean;
 }
@@ -58,7 +58,7 @@ export function ScanCenter({
         u.email.toLowerCase().includes(search)) &&
       (userTypeFilter === "all" ||
         u.userTypeName ===
-          userTypes.find((t) => t._id === userTypeFilter)?.userTypeName)
+          userTypes.find((t) => t._id === userTypeFilter)?.regDataTypeName)
     );
   });
 
@@ -183,7 +183,7 @@ export function ScanCenter({
                       <SelectItem value="all">All user types</SelectItem>
                       {userTypes.map((ut) => (
                         <SelectItem key={ut._id} value={ut._id}>
-                          {ut.userTypeName}
+                          {ut.regDataTypeName}
                         </SelectItem>
                       ))}
                     </SelectContent>

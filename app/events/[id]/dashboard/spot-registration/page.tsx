@@ -7,6 +7,9 @@ import { useDashboardData } from "../_context/DataContext";
 export default function SpotRegistrationPage() {
   const data = useDashboardData();
 
+  console.log("🔵 [SpotRegistrationPage] categories:", data.categories.length);
+  console.log("🔵 [SpotRegistrationPage] userTypes:", data.userTypes.length);
+
   return (
     <SpotRegistration
       users={data.printUsers}
@@ -19,6 +22,7 @@ export default function SpotRegistrationPage() {
       onBulkAllowAll={data.bulkAllowAll}
       onBulkBlockAll={data.bulkBlockAll}
       onPrintBadge={data.printBadge}
+      loading={data.loadingCategories || data.loadingUserTypes}
     />
   );
 }

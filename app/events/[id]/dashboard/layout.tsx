@@ -21,9 +21,6 @@ import { eventsApi } from "@/lib/api";
 import type { Event } from "@/lib/api";
 import { DashboardDataProvider } from "./_context/DataContext";
 
-// ============================================
-// Dashboard Context
-// ============================================
 interface DashboardContextType {
   eventId: string;
   event: Event | null;
@@ -41,9 +38,6 @@ export function useDashboard() {
   return ctx;
 }
 
-// ============================================
-// Nav Config
-// ============================================
 const NAV_ITEMS = [
   { path: "", icon: LayoutDashboard, label: "Dashboard" },
   { path: "scan", icon: ScanLine, label: "Scan" },
@@ -63,9 +57,6 @@ const MOBILE_NAV_ITEMS = [
   { path: "data", icon: Database, label: "Data" },
 ];
 
-// ============================================
-// Layout Component
-// ============================================
 export default function DashboardLayout({
   children,
   params,
@@ -157,7 +148,8 @@ export default function DashboardLayout({
       value={{ eventId: id, event, loading, reloadEvent: loadEvent }}
     >
       <DashboardDataProvider eventId={id}>
-        <div className="min-h-screen flex flex-col bg-neutral-50">
+        {/* KEY CHANGE: h-screen + overflow-hidden on outer wrapper */}
+        <div className="h-screen flex flex-col bg-neutral-50 overflow-hidden">
           <Header
             showEventInfo={true}
             eventName={event.eventName}
@@ -168,16 +160,17 @@ export default function DashboardLayout({
             backUrl="/events"
           />
 
-          <div className="flex-1 flex">
-            {/* Desktop Sidebar */}
-            <aside className="hidden md:flex w-56 lg:w-60 bg-white border-r border-neutral-200 flex-col flex-shrink-0">
+          {/* KEY CHANGE: min-h-0 so children can scroll internally */}
+          <div className="flex-1 flex min-h-0">
+            {/* Sidebar — fixed height, internal scroll if needed */}
+            <aside className="hidden md:flex w-56 lg:w-60 bg-white border-r border-neutral-200 flex-col flex-shrink-0 overflow-y-auto">
               <div className="p-4 border-b border-neutral-100">
                 <div className="flex items-center gap-2 text-xs text-neutral-500">
                   <ShieldCheck className="w-4 h-4 text-orange-600" />
                   <span>Admin Panel</span>
                 </div>
               </div>
-              <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+              <nav className="flex-1 p-3 space-y-1">
                 {NAV_ITEMS.map((item) => {
                   const isActive = currentSection === item.path;
                   const Icon = item.icon;
@@ -205,13 +198,13 @@ export default function DashboardLayout({
               </nav>
             </aside>
 
-            {/* Main Content */}
-            <main className="flex-1 overflow-auto pb-20 md:pb-0">
+            {/* Main content — scrolls independently */}
+            <main className="flex-1 overflow-y-auto pb-20 md:pb-0 min-w-0">
               {children}
             </main>
           </div>
 
-          {/* Mobile Bottom Navigation */}
+          {/* Mobile bottom nav */}
           <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 safe-area-bottom">
             <nav className="flex items-center justify-around h-16">
               {MOBILE_NAV_ITEMS.map((item) => {

@@ -147,10 +147,14 @@ export function parseAndValidate(
             duplicateRegNums: Array.from(duplicates),
             emptyRegNumRows,
             issues,
-            preview: rows.slice(0, 5).map((r, i) => ({
-              __rowNumber: i + 2,
-              ...r,
-            })),
+            preview: rows.slice(0, 5).map((r, i) => {
+              const { __rowNumber: _ignoredRowNumber, ...rowData } =
+                r as ParsedRow;
+              return {
+                __rowNumber: i + 2,
+                ...rowData,
+              };
+            }),
             totalRows: rows.length,
             validRows,
           });

@@ -40,8 +40,8 @@ export function useDashboard() {
 
 const NAV_ITEMS = [
   { path: "", icon: LayoutDashboard, label: "Dashboard" },
-  { path: "scan", icon: ScanLine, label: "Scan" },
   { path: "print", icon: Printer, label: "Print Center" },
+  { path: "scan", icon: ScanLine, label: "Scan" },
   { path: "spot-registration", icon: UserPlus, label: "Spot Registration" },
   { path: "category", icon: FolderTree, label: "Category" },
   { path: "privileges", icon: KeyRound, label: "Privileges" },
@@ -51,9 +51,9 @@ const NAV_ITEMS = [
 
 const MOBILE_NAV_ITEMS = [
   { path: "", icon: LayoutDashboard, label: "Home" },
+  { path: "print", icon: Printer, label: "Print" },
   { path: "scan", icon: ScanLine, label: "Scan" },
   { path: "spot-registration", icon: UserPlus, label: "Register" },
-  { path: "print", icon: Printer, label: "Print" },
   { path: "data", icon: Database, label: "Data" },
 ];
 

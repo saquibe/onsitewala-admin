@@ -20,6 +20,8 @@ export interface BackendRegistrationData {
   country?: string;
   reference?: string;
   note?: string;
+  isPrinted?: boolean;
+  printedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -60,6 +62,78 @@ export interface ImportResult {
 }
 
 // ============================================
+// Export Response Types (matches backend export endpoint)
+// ============================================
+export interface ExportEvent {
+  _id: string;
+  eventName: string;
+  eventShortName: string;
+}
+
+export interface ExportGroupCategory {
+  _id: string;
+  groupCategoryName: string;
+  description?: string;
+}
+
+export interface ExportCategory {
+  _id: string;
+  categoryCode: string;
+  categoryName: string;
+  status: string;
+  day?: string | null;
+  hall?: string | null;
+  session?: string | null;
+  time?: string | null;
+}
+
+export interface ExportPrivilege {
+  _id: string;
+  isAllowed: boolean;
+}
+
+export interface ExportScan {
+  _id: string | null;
+  isScanned: boolean;
+  scannedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface ExportCategoryEntry {
+  category: ExportCategory;
+  groupCategory: ExportGroupCategory;
+  isAllowed: boolean;
+  isScanned: boolean;
+  scannedAt: string | null;
+}
+
+export interface ExportRegistration {
+  _id: string;
+  regNum: string;
+  name: string;
+  email?: string | null;
+  mobile?: string | null;
+  mciNumber?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  reference?: string | null;
+  note?: string | null;
+  regDataType: { _id: string; regDataTypeName: string };
+  printing: { isPrinted?: boolean; printedAt: string | null };
+  categories: ExportCategoryEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportRegistrationDataResponse {
+  event: ExportEvent;
+  registrations: ExportRegistration[];
+}
+
+// ============================================
 // Adapters — inline, no separate file
 // ============================================
 
@@ -97,7 +171,8 @@ export function toPrintUser(
     city: r.city,
     state: r.state,
     country: r.country,
-    printed: false,
+    printed: r.isPrinted === true,
+    printedAt: r.printedAt,
   };
 }
 
@@ -245,5 +320,79 @@ export const registrationDataApi = {
     if (response.success && response.data) return response.data;
     if (response.success) return { importedCount: 0 };
     throw new Error(response.message || "Failed to import registration data");
+  },
+
+  async markAsPrinted(
+    eventId: string,
+    id: string,
+  ): Promise<BackendRegistrationData> {
+    const response = await apiClient.patch<BackendRegistrationData>(
+      `/api/events/${eventId}/registration-data/${id}/print`,
+    );
+    if (response.success && response.data) return response.data;
+    throw new Error(response.message || "Failed to mark as printed");
+  },
+
+  async getSummary(eventId: string): Promise<{
+    total: number;
+    printed: number;
+    notPrinted: number;
+  }> {
+    const response = await apiClient.get<{
+      total: number;
+      printed: number;
+      notPrinted: number;
+    }>(`/api/events/${eventId}/registration-data/summary`);
+    if (response.success && response.data) return response.data;
+    if (response.success) return { total: 0, printed: 0, notPrinted: 0 };
+    throw new Error(response.message || "Failed to fetch print summary");
+  },
+
+  async getPrintedRegistrationData(
+    eventId: string,
+    params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      sortBy?: string;
+      sortOrder?: "asc" | "desc";
+    },
+  ): Promise<BackendRegistrationData[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", params.page.toString());
+    if (params?.limit) queryParams.append("limit", params.limit.toString());
+    if (params?.search) queryParams.append("search", params.search);
+    if (params?.sortBy) queryParams.append("sortBy", params.sortBy);
+    if (params?.sortOrder) queryParams.append("sortOrder", params.sortOrder);
+
+    const url = `/api/events/${eventId}/registration-data/printed${
+      queryParams.toString() ? `?${queryParams.toString()}` : ""
+    }`;
+    const response = await apiClient.get<BackendRegistrationData[]>(url);
+    if (response.success && response.data) return response.data;
+    throw new Error(
+      response.message || "Failed to fetch printed registration data",
+    );
+  },
+
+  async getPrintedRegistrationDataById(
+    eventId: string,
+    id: string,
+  ): Promise<BackendRegistrationData> {
+    const response = await apiClient.get<BackendRegistrationData>(
+      `/api/events/${eventId}/registration-data/printed/${id}`,
+    );
+    if (response.success && response.data) return response.data;
+    throw new Error(
+      response.message || "Failed to fetch printed registration data",
+    );
+  },
+
+  // ── NEW ── Full event export (users + categories + privileges + scans)
+  async exportRegistrationData(eventId: string): Promise<ExportRegistration[]> {
+    const url = `/api/events/${eventId}/registration-data/export`;
+    const response = await apiClient.get<ExportRegistration[]>(url);
+    if (response.success && response.data) return response.data;
+    throw new Error(response.message || "Failed to export registration data");
   },
 };

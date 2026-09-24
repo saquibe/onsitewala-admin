@@ -62,7 +62,7 @@ interface DataManagementProps {
   userTypes: RegDataType[];
   onImportCSV: (file: File, regDataTypeId: string) => Promise<number>;
   onExportCSV: () => void;
-  onExportWithScans: () => void;
+  onExportWithScans: () => void | Promise<void>;
   onDeleteAllUsers: () => Promise<void>;
   onRefresh: () => void;
   loading?: boolean;
@@ -89,6 +89,8 @@ export function DataManagement({
   const [isValidating, setIsValidating] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isExportingScans, setIsExportingScans] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // existing regNums in this event, lowercased
   const existingRegNums = useMemo(
@@ -228,8 +230,30 @@ export function DataManagement({
               Upload users via CSV or Excel, or download all users as CSV.
             </p>
           </div>
-          <Button variant="outline" onClick={onRefresh} className="gap-2">
-            <RefreshCw className="w-4 h-4" /> Refresh
+          <Button
+            variant="outline"
+            onClick={async () => {
+              setIsRefreshing(true);
+              try {
+                await Promise.resolve(onRefresh());
+              } finally {
+                setIsRefreshing(false);
+              }
+            }}
+            disabled={isRefreshing || loading}
+            className="gap-2"
+          >
+            {isRefreshing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Refreshing…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </>
+            )}
           </Button>
         </div>
 
@@ -333,10 +357,28 @@ export function DataManagement({
               </Button>
               <Button
                 variant="outline"
-                onClick={onExportWithScans}
+                disabled={isExportingScans}
+                onClick={async () => {
+                  setIsExportingScans(true);
+                  try {
+                    await onExportWithScans();
+                  } finally {
+                    setIsExportingScans(false);
+                  }
+                }}
                 className="gap-2"
               >
-                <Database className="w-4 h-4" /> Export Users + Scans
+                {isExportingScans ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Exporting…
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4" />
+                    Export Users + Scans
+                  </>
+                )}
               </Button>
             </div>
           </div>

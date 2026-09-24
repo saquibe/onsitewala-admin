@@ -2,15 +2,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { QRCodeSVG } from "qrcode.react";
-import { Printer, X, Download } from "lucide-react";
+import { CheckCircle, XCircle } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import type { PrintUser } from "./types";
 
@@ -27,157 +28,70 @@ export function PrintPreviewDialog({
   user,
   onConfirmPrint,
 }: PrintPreviewDialogProps) {
-  const printAreaRef = useRef<HTMLDivElement>(null);
+  const yesButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Trigger the actual browser print
-  const handlePrint = () => {
-    if (!user) return;
-
-    // Mark as printed in parent state
-    onConfirmPrint?.(user.id);
-
-    // Use browser print (later you'll send to a physical printer via API)
-    const printContents = printAreaRef.current?.innerHTML;
-    if (printContents) {
-      const originalContents = document.body.innerHTML;
-      const printWindow = window.open("", "", "width=800,height=600");
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Badge - ${user.registrationNo}</title>
-              <style>
-                body {
-                  font-family: system-ui, sans-serif;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  min-height: 100vh;
-                  margin: 0;
-                  padding: 20px;
-                  background: white;
-                }
-                .badge-wrapper {
-                  width: 4in;
-                  height: 3in;
-                  border: 2px solid #000;
-                  border-radius: 12px;
-                  padding: 16px;
-                  box-sizing: border-box;
-                  display: flex;
-                  flex-direction: column;
-                  align-items: center;
-                  justify-content: space-between;
-                  background: white;
-                }
-                .badge-event {
-                  font-size: 11px;
-                  font-weight: 600;
-                  color: #ea580c;
-                  text-transform: uppercase;
-                  letter-spacing: 0.5px;
-                  text-align: center;
-                }
-                .badge-name {
-                  font-size: 22px;
-                  font-weight: 700;
-                  color: #111;
-                  text-align: center;
-                  line-height: 1.2;
-                  margin: 8px 0;
-                  word-break: break-word;
-                }
-                .badge-type {
-                  font-size: 12px;
-                  color: #666;
-                  text-transform: uppercase;
-                  letter-spacing: 1px;
-                  font-weight: 500;
-                }
-                .badge-qr {
-                  margin-top: 8px;
-                }
-                .badge-regno {
-                  font-size: 12px;
-                  font-family: monospace;
-                  font-weight: 600;
-                  color: #111;
-                  margin-top: 4px;
-                }
-                @media print {
-                  body { padding: 0; }
-                  .no-print { display: none !important; }
-                }
-              </style>
-            </head>
-            <body onload="window.print();window.close();">
-              <div class="badge-wrapper">
-                <div class="badge-name">${user.fullName}</div>
-                <div class="badge-type">${user.userTypeName}</div>
-                <div class="badge-qr">${printAreaRef.current?.querySelector("svg")?.outerHTML || ""}</div>
-                <div class="badge-regno">${user.registrationNo}</div>
-              </div>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-      }
+  // Focus the Yes button when the dialog opens — Enter then confirms
+  useEffect(() => {
+    if (open) {
+      // Small delay so the dialog is fully mounted/focused
+      const t = setTimeout(() => yesButtonRef.current?.focus(), 50);
+      return () => clearTimeout(t);
     }
+  }, [open]);
 
-    setTimeout(() => onOpenChange(false), 300);
-  };
+  // Global Enter handler — even if focus drifts, Enter = Yes
+  useEffect(() => {
+    if (!open || !user) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        onConfirmPrint?.(user.id);
+        onOpenChange(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, user, onConfirmPrint, onOpenChange]);
 
   if (!user) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Printer className="w-4 h-4 text-orange-600" />
-            Print Badge
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* Badge Preview */}
-        <div className="flex justify-center py-4 bg-neutral-50 rounded-lg">
-          <div
-            ref={printAreaRef}
-            className="bg-white border-neutral-900 rounded-xl p-4 w-[340px] h-[255px] flex flex-col items-center shadow-sm"
-          >
-            {/* Full Name */}
-            <div className="text-xl font-bold text-neutral-900 text-center leading-tight px-2 line-clamp-2">
-              {user.fullName}
-            </div>
-
-            {/* QR Code — only reg no is encoded */}
-            <div className="bg-white p-1 rounded mt-3">
-              <QRCodeSVG
-                value={user.registrationNo}
-                size={90}
-                level="M"
-                includeMargin={false}
-              />
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter className="flex flex-col sm:flex-row gap-2">
-          <Button
-            variant="outline"
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent
+        className="max-w-sm"
+        onEscapeKeyDown={() => onOpenChange(false)}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            Have you printed the badge?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Confirm that the badge for{" "}
+            <strong className="text-neutral-900">{user.fullName}</strong> (
+            <span className="font-mono">{user.registrationNo}</span>) was
+            printed successfully.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogCancel
             onClick={() => onOpenChange(false)}
-            className="w-full sm:w-auto h-10"
+            className="w-full sm:w-auto gap-1.5"
           >
-            <X className="w-4 h-4 mr-1.5" /> Cancel
-          </Button>
+            <XCircle className="w-4 h-4" /> No, not printed
+          </AlertDialogCancel>
           <Button
-            onClick={handlePrint}
-            className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto h-10"
+            ref={yesButtonRef}
+            onClick={() => {
+              onConfirmPrint?.(user.id);
+              onOpenChange(false);
+            }}
+            className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white gap-1.5"
           >
-            <Printer className="w-4 h-4 mr-1.5" /> Print Badge
+            <CheckCircle className="w-4 h-4" /> Yes, printed
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

@@ -82,11 +82,22 @@ export interface PrintUser {
   country?: string;
   printed: boolean;
   permissions?: CategoryPermission[];
+  printedAt?: string;
 }
 
 // ============================================
 // Scan User
 // ============================================
+export interface ScanCategory {
+  id: string;
+  name: string;
+  group: string;
+  code?: string;
+  scannedCount?: number;
+  totalCount?: number;
+  coverage?: number;
+}
+
 export interface ScanUser {
   id: string;
   registrationNo: string;
@@ -94,17 +105,35 @@ export interface ScanUser {
   email: string;
   fullName: string;
   phone: string;
-  scanned: boolean;
+  scans?: Record<string, string>;
 }
 
-// ============================================
-// Scan Category
-// ============================================
-export interface ScanCategory {
-  id: string;
-  name: string;
-  group: string;
-  count: number;
+export interface ScanResultData {
+  registration: { _id: string; regNum: string; name: string };
+  regDataType: { _id: string; regDataTypeName: string };
+  category: {
+    _id: string;
+    categoryCode: string;
+    categoryName: string;
+    status: string;
+    groupCategoryId: string;
+  };
+  isAllowed: boolean;
+  isScanned: boolean;
+  scannedAt: string;
+}
+
+export interface ScanSummaryCategory {
+  categoryId: string;
+  categoryName: string;
+  scanned: number;
+  total: number;
+  coverage: number;
+}
+
+export interface ScanSummaryGroup {
+  groupCategory: { _id: string; groupCategoryName: string };
+  categories: ScanSummaryCategory[];
 }
 
 // ============================================

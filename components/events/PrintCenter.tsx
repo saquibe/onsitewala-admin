@@ -11,6 +11,7 @@ import {
   XCircle,
   Filter,
   Edit,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,8 +39,8 @@ import { PrintPreviewDialog } from "./PrintPreviewDialog";
 interface PrintCenterProps {
   users: PrintUser[];
   userTypes: RegDataType[];
-  onPrintBadge: (userId: string) => void;
-  onBulkPrint: (userIds: string[]) => void;
+  onPrintBadge: (userId: string) => Promise<void> | void;
+  onBulkPrint: (userIds: string[]) => Promise<void> | void;
   onImportCSV: (file: File) => void;
   onExportCSV: () => void;
   loading?: boolean;
@@ -63,10 +64,8 @@ export function PrintCenter({
   const [userTypeFilter, setUserTypeFilter] = useState("all");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [printPreviewUser, setPrintPreviewUser] = useState<PrintUser | null>(
-    null,
-  );
-  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [confirmUser, setConfirmUser] = useState<PrintUser | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const filteredUsers = users.filter((u) => {
     const search = searchQuery.toLowerCase();
@@ -78,6 +77,9 @@ export function PrintCenter({
     );
   });
 
+  const allSelected =
+    filteredUsers.length > 0 && selectedUsers.length === filteredUsers.length;
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) onImportCSV(file);
@@ -87,6 +89,21 @@ export function PrintCenter({
     router.push(
       `/events/${eventId}/dashboard/spot-registration?edit=${user.id}`,
     );
+  };
+
+  const handlePrintClick = (user: PrintUser) => {
+    openPrintWindow(user);
+
+    if (user.printed) {
+      toast({
+        title: "Reprint sent",
+        description: `Badge for ${user.fullName} sent to printer.`,
+      });
+      return;
+    }
+
+    setConfirmUser(user);
+    setTimeout(() => setConfirmOpen(true), 400);
   };
 
   return (
@@ -167,9 +184,9 @@ export function PrintCenter({
         >
           <XCircle className="w-4 h-4" /> Clear
         </Button>
-        <Button variant="outline" onClick={onExportCSV} className="gap-2 h-10">
+        {/* <Button variant="outline" onClick={onExportCSV} className="gap-2 h-10">
           <Download className="w-4 h-4" /> Export
-        </Button>
+        </Button> */}
         <label className="cursor-pointer">
           <input
             type="file"
@@ -240,12 +257,9 @@ export function PrintCenter({
               <TableRow className="bg-neutral-50">
                 <TableHead className="w-10 sticky left-0 bg-neutral-50">
                   <Checkbox
-                    checked={
-                      selectedUsers.length === filteredUsers.length &&
-                      filteredUsers.length > 0
-                    }
+                    checked={allSelected}
                     onCheckedChange={() => {
-                      if (selectedUsers.length === filteredUsers.length) {
+                      if (allSelected) {
                         setSelectedUsers([]);
                       } else {
                         setSelectedUsers(filteredUsers.map((u) => u.id));
@@ -300,30 +314,35 @@ export function PrintCenter({
                     {user.reference || "-"}
                   </TableCell>
                   <TableCell className="text-right sticky right-0 bg-white">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant={user.printed ? "default" : "outline"}
-                        className={
-                          user.printed
-                            ? "bg-red-600 hover:bg-red-700 text-white"
-                            : "bg-green-600 text-white hover:bg-green-700"
-                        }
-                        onClick={() => {
-                          setPrintPreviewUser(user);
-                          setPrintPreviewOpen(true);
-                        }}
-                      >
-                        <Printer className="w-3.5 h-3.5 mr-1" />
-                        {user.printed ? "Reprint" : "Print"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEditUser(user)}
-                      >
-                        <Edit className="w-3.5 h-3.5 mr-1" /> Edit
-                      </Button>
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className={
+                            user.printed
+                              ? "bg-red-600 hover:bg-red-700 text-white"
+                              : "bg-green-600 text-white hover:bg-green-700"
+                          }
+                          onClick={() => handlePrintClick(user)}
+                        >
+                          <Printer className="w-3.5 h-3.5 mr-1" />
+                          {user.printed ? "Reprint" : "Print"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditUser(user)}
+                        >
+                          <Edit className="w-3.5 h-3.5 mr-1" /> Edit
+                        </Button>
+                      </div>
+                      {user.printed && user.printedAt && (
+                        <span className="text-[10px] text-neutral-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Printed {formatDateTime(user.printedAt)}
+                        </span>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -392,16 +411,13 @@ export function PrintCenter({
                 <div className="flex items-center gap-2 mt-3">
                   <Button
                     size="sm"
-                    variant={user.printed ? "default" : "outline"}
+                    variant="default"
                     className={`flex-1 h-9 text-xs ${
                       user.printed
                         ? "bg-red-600 hover:bg-red-700 text-white"
                         : "bg-green-600 text-white hover:bg-green-700"
                     }`}
-                    onClick={() => {
-                      setPrintPreviewUser(user);
-                      setPrintPreviewOpen(true);
-                    }}
+                    onClick={() => handlePrintClick(user)}
                   >
                     <Printer className="w-3.5 h-3.5 mr-1" />
                     {user.printed ? "Reprint" : "Print"}
@@ -415,6 +431,12 @@ export function PrintCenter({
                     <Edit className="w-3.5 h-3.5 mr-1" /> Edit
                   </Button>
                 </div>
+                {user.printed && user.printedAt && (
+                  <div className="mt-2 text-[10px] text-neutral-500 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Printed {formatDateTime(user.printedAt)}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -428,19 +450,191 @@ export function PrintCenter({
         )}
       </div>
 
-      {/* Print Preview Dialog */}
+      {/* Confirmation dialog (after print dialog closes) */}
       <PrintPreviewDialog
-        open={printPreviewOpen}
-        onOpenChange={setPrintPreviewOpen}
-        user={printPreviewUser}
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          setConfirmOpen(o);
+          if (!o) setConfirmUser(null);
+        }}
+        user={confirmUser}
         onConfirmPrint={(userId) => {
           onPrintBadge(userId);
           toast({
-            title: "Sent to printer",
-            description: `Badge sent for ${printPreviewUser?.fullName}`,
+            title: "Marked as printed",
+            description: `Badge for ${confirmUser?.fullName} marked printed.`,
           });
+          setConfirmOpen(false);
+          setConfirmUser(null);
         }}
       />
     </div>
   );
+}
+
+/* ════════════════════════════════════════════════════════════
+   Opens the browser print dialog ONCE with a clean badge
+   (Name + QR + Reg No)
+   ════════════════════════════════════════════════════════════ */
+async function openPrintWindow(user: PrintUser) {
+  // ⬇️ Await the QR SVG markup before building the HTML
+  const qrSvg = await buildQrSvgInline(user.registrationNo);
+
+  const html = `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title></title>
+        <style>
+          @page { size: auto; margin: 0; }
+          html, body {
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .badge {
+            width: 4in;
+            height: 3in;
+            padding: 14px 16px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-align: center;
+            page-break-inside: avoid;
+            page-break-after: avoid;
+          }
+          .badge-name {
+            font-size: 26px;
+            font-weight: 700;
+            color: #111;
+            line-height: 1.15;
+            max-width: 100%;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            word-break: break-word;
+          }
+          .badge-qr {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .badge-qr svg {
+            width: 80px;
+            height: 80px;
+            display: block;
+          }
+          .badge-regno {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: #111;
+            letter-spacing: 0.5px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="badge">
+          <div class="badge-name">${escapeHtml(user.fullName)}</div>
+          <div class="badge-qr">${qrSvg}</div>
+          <div class="badge-regno">${escapeHtml(user.registrationNo)}</div>
+        </div>
+      </body>
+    </html>`;
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("title", "");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.visibility = "hidden";
+  document.body.appendChild(iframe);
+
+  let printed = false;
+
+  const doPrint = () => {
+    if (printed) return;
+    printed = true;
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch (e) {
+      console.error("[print] error:", e);
+    }
+    setTimeout(() => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }, 1500);
+  };
+
+  iframe.onload = () => {
+    setTimeout(doPrint, 250);
+  };
+
+  const doc = iframe.contentDocument;
+  if (!doc) {
+    document.body.removeChild(iframe);
+    return;
+  }
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+}
+
+/* ════════════════════════════════════════════════════════════
+   QR code → inline SVG markup (async — awaits the qrcode
+   library's Promise<string> result)
+   ════════════════════════════════════════════════════════════ */
+async function buildQrSvgInline(text: string): Promise<string> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const QR = require("qrcode");
+    const svg = await QR.toString(text, {
+      type: "svg",
+      margin: 0,
+      width: 130,
+      errorCorrectionLevel: "M",
+      color: {
+        dark: "#000000",
+        light: "#ffffff",
+      },
+    });
+    // console.log("[QR] inline SVG generated, length:", svg.length);
+    return svg;
+  } catch (e) {
+    console.error("[QR] qrcode failed:", e);
+    return `<div style="font-size:11px;color:#c00;">QR unavailable</div>`;
+  }
+}
+
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatDateTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleString([], {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
 }

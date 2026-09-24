@@ -22,3 +22,7 @@ export * from "./categories";
 export * from "./privileges";
 
 export * from "./registrationData";
+
+export * from "./scans";
+
+export * from "./dashboard";

@@ -1,7 +1,7 @@
 // components/events/DashboardSection.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Users,
   BadgeCheck,
@@ -17,6 +17,7 @@ import {
   Info,
   CheckCircle2,
   UserPlus,
+  Loader2,
 } from "lucide-react";
 import {
   Card,
@@ -59,225 +60,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import type { Event } from "@/lib/api";
-
-// ============================================
-// MOCK DATA — to be replaced by API later
-// ============================================
-
-const stats = {
-  totalAttendees: 1248,
-  badgesPrinted: 432,
-  badgesNotPrinted: 816,
-  printCoverage: 35,
-  scansToday: 890,
-  scansTotal: 2134,
-  categories: 156,
-  reprints: 12,
-  failedPrints: 3,
-  duplicates: 7,
-};
-
-const printedVsNotPrinted = [
-  { name: "Printed", value: stats.badgesPrinted, fill: "hsl(142 76% 36%)" },
-  {
-    name: "Not Printed",
-    value: stats.badgesNotPrinted,
-    fill: "hsl(0 84% 60%)",
-  },
-];
-
-const usersByType = [
-  { type: "Delegate", total: 520, printed: 210, color: "hsl(24 95% 53%)" },
-  { type: "Faculty", total: 180, printed: 82, color: "hsl(200 95% 45%)" },
-  { type: "Student", total: 340, printed: 95, color: "hsl(142 76% 36%)" },
-  { type: "Sponsor", total: 96, printed: 30, color: "hsl(280 80% 50%)" },
-  { type: "Guest", total: 112, printed: 15, color: "hsl(0 84% 60%)" },
-];
-
-const dayWisePrinted = [
-  {
-    day: "Day 1",
-    Delegate: 45,
-    Faculty: 22,
-    Student: 12,
-    Sponsor: 5,
-    Guest: 3,
-  },
-  {
-    day: "Day 2",
-    Delegate: 68,
-    Faculty: 30,
-    Student: 28,
-    Sponsor: 10,
-    Guest: 4,
-  },
-  {
-    day: "Day 3",
-    Delegate: 60,
-    Faculty: 20,
-    Student: 40,
-    Sponsor: 12,
-    Guest: 6,
-  },
-  {
-    day: "Day 4",
-    Delegate: 37,
-    Faculty: 10,
-    Student: 15,
-    Sponsor: 3,
-    Guest: 2,
-  },
-];
-
-const dayWiseTotal = [
-  {
-    day: "Day 1",
-    Delegate: 120,
-    Faculty: 40,
-    Student: 80,
-    Sponsor: 20,
-    Guest: 15,
-  },
-  {
-    day: "Day 2",
-    Delegate: 150,
-    Faculty: 45,
-    Student: 95,
-    Sponsor: 25,
-    Guest: 20,
-  },
-  {
-    day: "Day 3",
-    Delegate: 140,
-    Faculty: 50,
-    Student: 100,
-    Sponsor: 30,
-    Guest: 22,
-  },
-  {
-    day: "Day 4",
-    Delegate: 110,
-    Faculty: 45,
-    Student: 65,
-    Sponsor: 21,
-    Guest: 55,
-  },
-];
-
-const scansByGroup = [
-  {
-    groupName: "Food Scan",
-    categories: [
-      { categoryName: "Breakfast - 13/09/2026", scanned: 79, total: 120 },
-      { categoryName: "DINNER - 12/09/2026", scanned: 293, total: 340 },
-      { categoryName: "FACULTY LUNCH - 12/09/2026", scanned: 18, total: 45 },
-      { categoryName: "GALA DINNER - 12/09/2026", scanned: 272, total: 350 },
-      { categoryName: "LUNCH - 12/09/2026", scanned: 452, total: 500 },
-      { categoryName: "LUNCH - 13/09/2026", scanned: 354, total: 400 },
-    ],
-  },
-  {
-    groupName: "Gift",
-    categories: [{ categoryName: "KIT", scanned: 462, total: 600 }],
-  },
-  {
-    groupName: "Certificate",
-    categories: [{ categoryName: "Certificate", scanned: 380, total: 500 }],
-  },
-];
-
-// Scan activity by hour (today)
-const scanActivity = [
-  { hour: "08:00", scans: 12 },
-  { hour: "09:00", scans: 45 },
-  { hour: "10:00", scans: 98 },
-  { hour: "11:00", scans: 156 },
-  { hour: "12:00", scans: 142 },
-  { hour: "13:00", scans: 88 },
-  { hour: "14:00", scans: 105 },
-  { hour: "15:00", scans: 76 },
-  { hour: "16:00", scans: 54 },
-  { hour: "17:00", scans: 32 },
-  { hour: "18:00", scans: 12 },
-];
-
-// Top operators/desks
-const topOperators = [
-  { name: "Desk A - Priya", scans: 245 },
-  { name: "Desk B - Amit", scans: 210 },
-  { name: "Desk C - Rohan", scans: 178 },
-  { name: "Desk D - Sneha", scans: 156 },
-  { name: "Desk E - Vikram", scans: 101 },
-];
-
-// Live scan feed
-const recentScans = [
-  {
-    regNo: "SPOT-0041",
-    name: "Dr. Saivardhan Reddy",
-    category: "LUNCH - 12/09/2026",
-    time: "2 min ago",
-  },
-  {
-    regNo: "REG-0120",
-    name: "Dr. Poorna Royal",
-    category: "KIT",
-    time: "4 min ago",
-  },
-  {
-    regNo: "SPOT-0039",
-    name: "Dr. Sambaraju Sindhu",
-    category: "GALA DINNER",
-    time: "7 min ago",
-  },
-  {
-    regNo: "REG-0345",
-    name: "Dr. Sai Sujala Neela",
-    category: "Breakfast",
-    time: "11 min ago",
-  },
-  {
-    regNo: "SPOT-0038",
-    name: "Dr. Shaistha Zoha",
-    category: "FACULTY LUNCH",
-    time: "14 min ago",
-  },
-];
-
-// Recent activity feed
-const recentActivity = [
-  {
-    icon: UserPlus,
-    text: "12 attendees imported via CSV",
-    time: "3 min ago",
-    color: "text-blue-600",
-  },
-  {
-    icon: Printer,
-    text: "Badge printed for SPOT-0041",
-    time: "5 min ago",
-    color: "text-green-600",
-  },
-  {
-    icon: QrCode,
-    text: "Scan recorded: KIT for REG-0120",
-    time: "7 min ago",
-    color: "text-orange-600",
-  },
-  {
-    icon: AlertTriangle,
-    text: "3 failed prints detected",
-    time: "15 min ago",
-    color: "text-red-600",
-  },
-  {
-    icon: CheckCircle2,
-    text: "Category 'Breakfast' added",
-    time: "1 hr ago",
-    color: "text-green-600",
-  },
-];
+import {
+  dashboardApi,
+  type DashboardStats,
+  type RecentScan,
+  type Event,
+} from "@/lib/api";
 
 const PALETTE = [
   "hsl(24 95% 53%)",
@@ -287,6 +75,35 @@ const PALETTE = [
   "hsl(0 84% 60%)",
   "hsl(45 90% 50%)",
 ];
+
+function shiftScanActivityToLocal(
+  scanActivity: Array<{ hour: string; scans: number }>,
+): Array<{ hour: string; scans: number }> {
+  if (!scanActivity || scanActivity.length === 0) {
+    return scanActivity ?? [];
+  }
+
+  const offsetHours = -new Date().getTimezoneOffset() / 60;
+  const wholeOffset = Math.round(offsetHours);
+
+  const buckets: number[] = new Array(24).fill(0);
+
+  for (let i = 0; i < scanActivity.length; i++) {
+    const row = scanActivity[i];
+    const utcHour = Number(row.hour.slice(0, 2));
+    const localHour = (utcHour + wholeOffset + 24) % 24;
+    buckets[localHour] = buckets[localHour] + row.scans;
+  }
+
+  const result: Array<{ hour: string; scans: number }> = [];
+  for (let h = 0; h < 24; h++) {
+    result.push({
+      hour: (h < 10 ? "0" : "") + h + ":00",
+      scans: buckets[h],
+    });
+  }
+  return result;
+}
 
 const printedVsNotConfig = {
   printed: { label: "Printed", color: "hsl(142 76% 36%)" },
@@ -302,10 +119,6 @@ const scanActivityConfig = {
   scans: { label: "Scans", color: "hsl(24 95% 53%)" },
 } satisfies ChartConfig;
 
-// ============================================
-// Helpers
-// ============================================
-
 function getDaysRemaining(startDate: string, endDate: string) {
   const today = new Date();
   const start = new Date(startDate);
@@ -320,42 +133,145 @@ function getDaysRemaining(startDate: string, endDate: string) {
   return { status: "live", dayOfEvent, totalDays };
 }
 
-// ============================================
-// Component
-// ============================================
-
 interface DashboardSectionProps {
   event: Event;
 }
 
 export function DashboardSection({ event }: DashboardSectionProps) {
   const { toast } = useToast();
-  const [isLive, setIsLive] = useState(true);
   const eventStatus = getDaysRemaining(event.startDate, event.endDate);
 
-  // Live clock simulation
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats["stats"] | null>(null);
+  const [usersByType, setUsersByType] = useState<DashboardStats["usersByType"]>(
+    [],
+  );
+  const [dayWisePrinted, setDayWisePrinted] = useState<
+    DashboardStats["dayWisePrinted"]
+  >([]);
+  const [dayWiseTotal, setDayWiseTotal] = useState<
+    DashboardStats["dayWiseTotal"]
+  >([]);
+  const [scanActivity, setScanActivity] = useState<
+    DashboardStats["scanActivity"]
+  >([]);
+  const [scansByGroup, setScansByGroup] = useState<
+    DashboardStats["scansByGroup"]
+  >([]);
+  const [dataQuality, setDataQuality] = useState<
+    DashboardStats["dataQuality"] | null
+  >(null);
+  const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
+
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [statsRes, scansRes] = await Promise.all([
+        dashboardApi.getStats(event._id),
+        dashboardApi.getRecentScans(event._id, 10),
+      ]);
+      setStats(statsRes.stats);
+      setUsersByType(statsRes.usersByType);
+      setDayWisePrinted(statsRes.dayWisePrinted);
+      setDayWiseTotal(statsRes.dayWiseTotal);
+      setScanActivity(statsRes.scanActivity);
+      setScansByGroup(statsRes.scansByGroup);
+      setDataQuality(statsRes.dataQuality);
+      setRecentScans(scansRes);
+    } catch (e: any) {
+      toast({
+        title: "Failed to load dashboard",
+        description: e?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [event._id, toast]);
+
+  const localScanActivity = shiftScanActivityToLocal(scanActivity);
+
   useEffect(() => {
-    const t = setInterval(() => setIsLive((p) => !p), 5000);
-    return () => clearInterval(t);
-  }, []);
+    loadDashboard();
+  }, [loadDashboard]);
 
   const handleExport = () => {
     toast({
       title: "Export started",
       description: "Dashboard snapshot is being prepared...",
     });
-    // window.print() or html2canvas later
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
+    await loadDashboard();
     toast({ title: "Refreshed", description: "Dashboard data updated" });
   };
 
+  if (loading || !stats) {
+    return (
+      <div className="p-4 sm:p-6 flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-orange-600 mx-auto mb-3" />
+          <p className="text-sm text-neutral-500">Loading dashboard…</p>
+        </div>
+      </div>
+    );
+  }
+
+  const typeChartConfig = (() => {
+    const cfg: ChartConfig = {};
+    usersByType.forEach((t, i) => {
+      cfg[t.type] = {
+        label: t.type,
+        color: PALETTE[i % PALETTE.length],
+      };
+    });
+    return cfg;
+  })();
+
+  const printedVsNotPrinted = [
+    {
+      name: "Printed",
+      value: stats.badgesPrinted,
+      fill: "hsl(142 76% 36%)",
+    },
+    {
+      name: "Not Printed",
+      value: stats.badgesNotPrinted,
+      fill: "hsl(0 84% 60%)",
+    },
+  ];
+
+  const recentActivity = recentScans.slice(0, 5).map((s) => ({
+    icon: QrCode,
+    text: `Scan recorded: ${s.category} for ${s.regNum}`,
+    time: new Date(s.scannedAt).toLocaleTimeString(),
+    color: "text-orange-600",
+  }));
+
+  const dataQualityRows = dataQuality
+    ? [
+        {
+          label: "Missing email",
+          count: dataQuality.missingEmail,
+          total: stats.totalAttendees,
+        },
+        {
+          label: "Missing phone",
+          count: dataQuality.missingPhone,
+          total: stats.totalAttendees,
+        },
+        {
+          label: "Missing IMC number",
+          count: dataQuality.missingImc,
+          total: stats.totalAttendees,
+        },
+      ]
+    : [];
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      {/* ============================================ */}
-      {/* Header with live status + actions */}
-      {/* ============================================ */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">
@@ -399,7 +315,7 @@ export function DashboardSection({ event }: DashboardSectionProps) {
             <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
             Refresh
           </Button>
-          <Button
+          {/* <Button
             variant="outline"
             size="sm"
             onClick={handleExport}
@@ -407,23 +323,16 @@ export function DashboardSection({ event }: DashboardSectionProps) {
           >
             <Download className="w-3.5 h-3.5 mr-1.5" />
             Export
-          </Button>
+          </Button> */}
         </div>
       </div>
 
-      {/* ============================================ */}
-      {/* Top Stat Cards — 6 KPI tiles */}
-      {/* ============================================ */}
+      {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div className="w-11 h-11 rounded-lg bg-green-50 flex items-center justify-center">
-                <BadgeCheck className="w-5 h-5 text-green-600" />
-              </div>
-              <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                +12 today
-              </span>
+            <div className="w-11 h-11 rounded-lg bg-green-50 flex items-center justify-center mb-3">
+              <BadgeCheck className="w-5 h-5 text-green-600" />
             </div>
             <div className="text-3xl font-bold text-neutral-900">
               {stats.badgesPrinted.toLocaleString()}
@@ -463,13 +372,8 @@ export function DashboardSection({ event }: DashboardSectionProps) {
 
         <Card>
           <CardContent className="p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div className="w-11 h-11 rounded-lg bg-orange-50 flex items-center justify-center">
-                <Users className="w-5 h-5 text-orange-600" />
-              </div>
-              <span className="text-[10px] font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
-                {stats.totalAttendees.toLocaleString()}
-              </span>
+            <div className="w-11 h-11 rounded-lg bg-orange-50 flex items-center justify-center mb-3">
+              <Users className="w-5 h-5 text-orange-600" />
             </div>
             <div className="text-3xl font-bold text-neutral-900">
               {stats.totalAttendees.toLocaleString()}
@@ -479,9 +383,7 @@ export function DashboardSection({ event }: DashboardSectionProps) {
         </Card>
       </div>
 
-      {/* ============================================ */}
       {/* Printed vs Not Printed + Users by Type */}
-      {/* ============================================ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
@@ -561,9 +463,7 @@ export function DashboardSection({ event }: DashboardSectionProps) {
         </Card>
       </div>
 
-      {/* ============================================ */}
       {/* Day-wise Printed by Type */}
-      {/* ============================================ */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Day-wise Printed by Type</CardTitle>
@@ -572,19 +472,7 @@ export function DashboardSection({ event }: DashboardSectionProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartContainer
-            config={(() => {
-              const cfg: ChartConfig = {};
-              usersByType.forEach((t, i) => {
-                cfg[t.type] = {
-                  label: t.type,
-                  color: PALETTE[i % PALETTE.length],
-                };
-              });
-              return cfg;
-            })()}
-            className="w-full h-[320px]"
-          >
+          <ChartContainer config={typeChartConfig} className="w-full h-[320px]">
             <LineChart data={dayWisePrinted} margin={{ left: -20, right: 10 }}>
               <CartesianGrid vertical={false} />
               <XAxis
@@ -617,9 +505,7 @@ export function DashboardSection({ event }: DashboardSectionProps) {
         </CardContent>
       </Card>
 
-      {/* ============================================ */}
       {/* Day-wise Total Registrations by Type */}
-      {/* ============================================ */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
@@ -630,19 +516,7 @@ export function DashboardSection({ event }: DashboardSectionProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartContainer
-            config={(() => {
-              const cfg: ChartConfig = {};
-              usersByType.forEach((t, i) => {
-                cfg[t.type] = {
-                  label: t.type,
-                  color: PALETTE[i % PALETTE.length],
-                };
-              });
-              return cfg;
-            })()}
-            className="w-full h-[320px]"
-          >
+          <ChartContainer config={typeChartConfig} className="w-full h-[320px]">
             <BarChart data={dayWiseTotal} margin={{ left: -20, right: 10 }}>
               <CartesianGrid vertical={false} />
               <XAxis
@@ -675,9 +549,7 @@ export function DashboardSection({ event }: DashboardSectionProps) {
         </CardContent>
       </Card>
 
-      {/* ============================================ */}
       {/* Scan Activity by Hour */}
-      {/* ============================================ */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -693,7 +565,10 @@ export function DashboardSection({ event }: DashboardSectionProps) {
             config={scanActivityConfig}
             className="w-full h-[220px]"
           >
-            <AreaChart data={scanActivity} margin={{ left: -20, right: 10 }}>
+            <AreaChart
+              data={localScanActivity}
+              margin={{ left: -20, right: 10 }}
+            >
               <defs>
                 <linearGradient id="scanGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop
@@ -734,9 +609,7 @@ export function DashboardSection({ event }: DashboardSectionProps) {
         </CardContent>
       </Card>
 
-      {/* ============================================ */}
       {/* Category Coverage */}
-      {/* ============================================ */}
       <div className="space-y-4">
         <div>
           <h2 className="text-lg font-bold text-neutral-900">
@@ -747,67 +620,81 @@ export function DashboardSection({ event }: DashboardSectionProps) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {scansByGroup.map((group) => (
-            <Card key={group.groupName}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <FolderTree className="w-4 h-4 text-orange-600" />
-                  <CardTitle className="text-base">{group.groupName}</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-neutral-50">
-                      <TableHead className="text-xs">Category</TableHead>
-                      <TableHead className="text-xs text-right">
-                        Scanned
-                      </TableHead>
-                      <TableHead className="text-xs w-[120px]">
-                        Coverage
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {group.categories.map((cat) => {
-                      const pct = Math.round((cat.scanned / cat.total) * 100);
-                      return (
-                        <TableRow key={cat.categoryName}>
-                          <TableCell className="text-sm">
-                            {cat.categoryName}
-                          </TableCell>
-                          <TableCell className="text-right text-sm">
-                            <span className="font-medium text-neutral-900">
-                              {cat.scanned}
-                            </span>
-                            <span className="text-neutral-400">
-                              /{cat.total}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Progress value={pct} className="h-1.5 flex-1" />
-                              <span className="text-xs font-medium text-neutral-600 w-8 text-right">
-                                {pct}%
+        {scansByGroup.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center text-sm text-neutral-500">
+              No categories yet for this event.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {scansByGroup.map((group) => (
+              <Card key={group.groupName}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <FolderTree className="w-4 h-4 text-orange-600" />
+                    <CardTitle className="text-base">
+                      {group.groupName}
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-neutral-50">
+                        <TableHead className="text-xs">Category</TableHead>
+                        <TableHead className="text-xs text-right">
+                          Scanned
+                        </TableHead>
+                        <TableHead className="text-xs w-[120px]">
+                          Coverage
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {group.categories.map((cat) => {
+                        const pct =
+                          cat.total > 0
+                            ? Math.round((cat.scanned / cat.total) * 100)
+                            : 0;
+                        return (
+                          <TableRow key={cat.categoryName}>
+                            <TableCell className="text-sm">
+                              {cat.categoryName}
+                            </TableCell>
+                            <TableCell className="text-right text-sm">
+                              <span className="font-medium text-neutral-900">
+                                {cat.scanned}
                               </span>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                              <span className="text-neutral-400">
+                                /{cat.total}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Progress
+                                  value={pct}
+                                  className="h-1.5 flex-1"
+                                />
+                                <span className="text-xs font-medium text-neutral-600 w-8 text-right">
+                                  {pct}%
+                                </span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* ============================================ */}
-      {/* Data Quality Alerts */}
-      {/* ============================================ */}
-      <Card>
+      {/* Data Quality */}
+      {/* <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Info className="w-4 h-4 text-orange-600" />
@@ -818,20 +705,7 @@ export function DashboardSection({ event }: DashboardSectionProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {[
-            { label: "Missing email", count: 45, total: stats.totalAttendees },
-            { label: "Missing phone", count: 28, total: stats.totalAttendees },
-            {
-              label: "Missing IMC number",
-              count: 156,
-              total: stats.totalAttendees,
-            },
-            {
-              label: "Duplicate registration numbers",
-              count: 3,
-              total: stats.totalAttendees,
-            },
-          ].map((item) => (
+          {dataQualityRows.map((item) => (
             <div
               key={item.label}
               className="flex items-center justify-between text-sm"
@@ -839,7 +713,10 @@ export function DashboardSection({ event }: DashboardSectionProps) {
               <span className="text-neutral-700">{item.label}</span>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-neutral-500">
-                  {Math.round((item.count / item.total) * 100)}%
+                  {item.total > 0
+                    ? Math.round((item.count / item.total) * 100)
+                    : 0}
+                  %
                 </span>
                 <Badge variant="outline" className="text-xs">
                   {item.count}
@@ -848,7 +725,33 @@ export function DashboardSection({ event }: DashboardSectionProps) {
             </div>
           ))}
         </CardContent>
-      </Card>
+      </Card> */}
+
+      {/* Recent activity feed */}
+      {recentActivity.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+              Recent Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {recentActivity.map((a, i) => {
+              const Icon = a.icon;
+              return (
+                <div key={i} className="flex items-center gap-3 text-sm">
+                  <Icon className={`w-4 h-4 ${a.color} flex-shrink-0`} />
+                  <span className="flex-1 text-neutral-700 truncate">
+                    {a.text}
+                  </span>
+                  <span className="text-xs text-neutral-400">{a.time}</span>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

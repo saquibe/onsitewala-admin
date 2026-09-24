@@ -53,12 +53,12 @@ export const authApi = {
     data: LoginRequest,
   ): Promise<{ user: User; accessToken: string }> {
     try {
-      console.log("Login attempt with:", { email: data.email });
+      // console.log("Login attempt with:", { email: data.email });
       const response = await apiClient.post<LoginResponse>(
         "/api/auth/login",
         data,
       );
-      console.log("Login response:", response);
+      // console.log("Login response:", response);
 
       if (response.success && response.data) {
         apiClient.setToken(response.data.accessToken);
@@ -165,15 +165,15 @@ export const authApi = {
       }
       // If profileImage is a string URL, we don't need to send it again
 
-      console.log("Updating profile with:", {
-        fullName: data.fullName,
-        mobile: data.mobile,
-        hasImageFile: data.profileImage instanceof File,
-        imageType:
-          data.profileImage instanceof File
-            ? data.profileImage.type
-            : typeof data.profileImage,
-      });
+      // console.log("Updating profile with:", {
+      //   fullName: data.fullName,
+      //   mobile: data.mobile,
+      //   hasImageFile: data.profileImage instanceof File,
+      //   imageType:
+      //     data.profileImage instanceof File
+      //       ? data.profileImage.type
+      //       : typeof data.profileImage,
+      // });
 
       const response = await apiClient.patch<User>(
         "/api/auth/profile",

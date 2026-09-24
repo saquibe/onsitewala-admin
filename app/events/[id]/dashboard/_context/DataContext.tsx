@@ -8,6 +8,7 @@ import {
   useEffect,
   useCallback,
   ReactNode,
+  useMemo,
 } from "react";
 import {
   categoriesApi,
@@ -18,6 +19,7 @@ import {
   toPrintUser,
   toCreatePayload,
   toUpdatePayload,
+  registrationScanApi,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import type {
@@ -27,6 +29,8 @@ import type {
   CategoryPermission,
   PrintUser,
   ScanUser,
+  ScanSummaryGroup,
+  ScanResultData,
 } from "@/components/events/types";
 
 interface DataContextType {
@@ -41,6 +45,11 @@ interface DataContextType {
   loadingUserTypes: boolean;
   loadingPermissions: boolean;
   loadingPrintUsers: boolean;
+
+  scanSummary: ScanSummaryGroup[];
+  loadingScanSummary: boolean;
+  scanUser: (regNum: string, categoryId: string) => Promise<ScanResultData>;
+  refreshScanSummary: () => Promise<void>;
 
   addUserType: (name: string) => Promise<void>;
   updateUserType: (id: string, name: string) => Promise<void>;
@@ -77,9 +86,11 @@ interface DataContextType {
     permissions?: CategoryPermission[],
   ) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
-  printBadge: (userId: string) => void;
-  bulkPrint: (userIds: string[]) => void;
-  scanUser: (userId: string, categoryId: string) => void;
+  printBadge: (userId: string) => Promise<void>;
+  bulkPrint: (userIds: string[]) => Promise<void>;
+  printSummary: { total: number; printed: number; notPrinted: number };
+  refreshPrintSummary: () => Promise<void>;
+  // scanUser: (userId: string, categoryId: string) => void;
 
   importCSV: (file: File, regDataTypeId: string) => Promise<number>;
   deleteAllUsers: () => Promise<void>;
@@ -114,11 +125,30 @@ export function DashboardDataProvider({
   const [permissions, setPermissions] = useState<CategoryPermission[]>([]);
   const [printUsers, setPrintUsers] = useState<PrintUser[]>([]);
   const [scanUsers, setScanUsers] = useState<ScanUser[]>([]);
+  const [scanSummary, setScanSummary] = useState<ScanSummaryGroup[]>([]);
+  const [loadingScanSummary, setLoadingScanSummary] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [loadingUserTypes, setLoadingUserTypes] = useState(false);
   const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [loadingPrintUsers, setLoadingPrintUsers] = useState(false);
+  const [scanRecords, setScanRecords] = useState<
+    Record<string, Record<string, string>>
+  >({});
+  const [printSummary, setPrintSummary] = useState({
+    total: 0,
+    printed: 0,
+    notPrinted: 0,
+  });
+
+  const refreshPrintSummary = useCallback(async () => {
+    try {
+      const data = await registrationDataApi.getSummary(eventId);
+      setPrintSummary(data);
+    } catch {
+      setPrintSummary({ total: 0, printed: 0, notPrinted: 0 });
+    }
+  }, [eventId]);
 
   // ============================================
   // Load user types
@@ -210,6 +240,19 @@ export function DashboardDataProvider({
     }
   }, [eventId]);
 
+  const refreshScanSummary = useCallback(async () => {
+    setLoadingScanSummary(true);
+    try {
+      const data = await registrationScanApi.summary(eventId);
+      setScanSummary(data || []);
+    } catch (e: any) {
+      // don't toast — summary may 403 for some roles
+      setScanSummary([]);
+    } finally {
+      setLoadingScanSummary(false);
+    }
+  }, [eventId]);
+
   // ============================================
   // Load print users (registration-data)
   // ============================================
@@ -217,23 +260,41 @@ export function DashboardDataProvider({
     async (types?: RegDataType[]) => {
       setLoadingPrintUsers(true);
       try {
-        const data = await registrationDataApi.getRegistrationData(eventId, {
-          limit: 500,
-        });
+        // Fetch users and scans in parallel
+        const [data, scanList] = await Promise.all([
+          registrationDataApi.getRegistrationData(eventId, { limit: 500 }),
+          registrationScanApi.list(eventId, { limit: 1000 }).catch(() => []),
+        ]);
+
+        // Build a map: regNum (lowercase) -> { [categoryId]: scannedAt }
+        const scanMap = new Map<string, Record<string, string>>();
+        for (const s of scanList) {
+          const regNum = s.registrationDataId?.regNum;
+          const categoryId = s.categoryId?._id;
+          if (!regNum || !categoryId) continue;
+          const key = regNum.trim().toLowerCase();
+          const bucket = scanMap.get(key) ?? {};
+          bucket[categoryId] = s.scannedAt;
+          scanMap.set(key, bucket);
+        }
+
         const typesToUse = types && types.length > 0 ? types : userTypes;
         const mapped = (data || []).map((r) => toPrintUser(r, typesToUse));
         setPrintUsers(mapped);
 
-        // Also populate scan users from same data
-        const scanMapped: ScanUser[] = mapped.map((u) => ({
-          id: u.id,
-          registrationNo: u.registrationNo,
-          userTypeName: u.userTypeName,
-          email: u.email,
-          fullName: u.fullName,
-          phone: u.phone,
-          scanned: false,
-        }));
+        // Merge scans into ScanUser[]
+        const scanMapped: ScanUser[] = mapped.map((u) => {
+          const key = u.registrationNo.trim().toLowerCase();
+          return {
+            id: u.id,
+            registrationNo: u.registrationNo,
+            userTypeName: u.userTypeName,
+            email: u.email,
+            fullName: u.fullName,
+            phone: u.phone,
+            scans: scanMap.get(key) ?? {},
+          };
+        });
         setScanUsers(scanMapped);
 
         return mapped;
@@ -611,7 +672,7 @@ export function DashboardDataProvider({
           email: mapped.email,
           fullName: mapped.fullName,
           phone: mapped.phone,
-          scanned: false,
+          scans: {},
         },
       ]);
     } catch (e: any) {
@@ -681,23 +742,101 @@ export function DashboardDataProvider({
   // ============================================
   // Print + scan (local only)
   // ============================================
-  const printBadge = (userId: string) => {
+  const printBadge = async (userId: string) => {
     setPrintUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, printed: true } : u)),
     );
+
+    try {
+      await registrationDataApi.markAsPrinted(eventId, userId);
+      refreshPrintSummary().catch(() => {});
+    } catch (e: any) {
+      setPrintUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, printed: false } : u)),
+      );
+      toast({
+        title: "Print failed",
+        description:
+          e?.response?.data?.message ||
+          e?.message ||
+          "Failed to mark as printed",
+        variant: "destructive",
+      });
+      throw e;
+    }
   };
 
-  const bulkPrint = (userIds: string[]) => {
+  const bulkPrint = async (userIds: string[]) => {
+    if (!userIds.length) return;
+
     setPrintUsers((prev) =>
       prev.map((u) => (userIds.includes(u.id) ? { ...u, printed: true } : u)),
     );
+
+    const results = await Promise.allSettled(
+      userIds.map((id) => registrationDataApi.markAsPrinted(eventId, id)),
+    );
+
+    const failedIds = userIds.filter(
+      (_, i) => results[i].status === "rejected",
+    );
+
+    if (failedIds.length > 0) {
+      setPrintUsers((prev) =>
+        prev.map((u) =>
+          failedIds.includes(u.id) ? { ...u, printed: false } : u,
+        ),
+      );
+
+      const firstError = results.find((r) => r.status === "rejected") as
+        | PromiseRejectedResult
+        | undefined;
+
+      toast({
+        title: "Some prints failed",
+        description:
+          firstError?.reason?.response?.data?.message ||
+          `${failedIds.length} of ${userIds.length} failed to print.`,
+        variant: "destructive",
+      });
+      throw firstError?.reason ?? new Error("Bulk print partially failed");
+    } else {
+      toast({
+        title: "Sent to printer",
+        description: `${userIds.length} badge(s) marked as printed.`,
+      });
+    }
+
+    refreshPrintSummary().catch(() => {});
   };
 
-  const scanUser = (userId: string, _categoryId: string) => {
+  const scanUser = async (regNum: string, categoryId: string) => {
+    const result = await registrationScanApi.scan(eventId, categoryId, regNum);
+
+    const key = regNum.trim().toLowerCase();
     setScanUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, scanned: true } : u)),
+      prev.map((u) =>
+        u.registrationNo.trim().toLowerCase() === key
+          ? {
+              ...u,
+              scans: { ...(u.scans || {}), [categoryId]: result.scannedAt },
+            }
+          : u,
+      ),
     );
+
+    refreshScanSummary().catch(() => {});
+    return result;
   };
+
+  // Compute merged scanUsers
+  const mergedScanUsers = useMemo<ScanUser[]>(() => {
+    return scanUsers.map((u) => {
+      const key = u.registrationNo.trim().toLowerCase();
+      const record = scanRecords[key];
+      return record ? { ...u, scans: { ...(u.scans || {}), ...record } } : u;
+    });
+  }, [scanUsers, scanRecords]);
 
   // ============================================
   // Data management
@@ -756,6 +895,20 @@ export function DashboardDataProvider({
     ]);
   };
 
+  useEffect(() => {
+    (async () => {
+      const types = await loadUserTypes();
+      await Promise.all([
+        loadCategories(),
+        loadGroups(),
+        loadPermissions(),
+        loadPrintUsers(types),
+        refreshScanSummary(),
+        refreshPrintSummary(),
+      ]);
+    })();
+  }, [eventId]);
+
   return (
     <DataContext.Provider
       value={{
@@ -770,6 +923,11 @@ export function DashboardDataProvider({
         loadingUserTypes,
         loadingPermissions,
         loadingPrintUsers,
+        scanSummary,
+        loadingScanSummary,
+        printSummary,
+        refreshPrintSummary,
+        refreshScanSummary,
         addUserType,
         updateUserType,
         deleteUserType,
